@@ -312,6 +312,48 @@ def main(base: Path, archive: Path, steps: str, language: str) -> None:
         else:
             wait_for(button_ready, "HoldUp available after Undo on answer")
 
+        # Regression: no get_queued_cards()/counts() between HoldUp and the
+        # native rating. Such a read would hide the invalidated-queue bug.
+        mw.addonManager.writeConfig("holdup", {"interval_seconds": 7200, "interval_mode": "seconds"})
+        _controller.on_answer(mw.reviewer.card)
+        wait_for(button_ready, "two-hour HoldUp")
+        js("document.getElementById('holdup-button').click(); true")
+        wait_for(lambda: not runtime.busy and queue.get(first_id) is not None, "two-hour appointment")
+        two_hours = queue.get(first_id)
+        assert two_hours.interval_seconds == 7200
+        assert mw.reviewer.card.id == first_id and mw.reviewer.state == "answer"
+        js("document.querySelector('#middle button[data-ease=\"4\"]').click(); true")
+        wait_for(lambda: len(answered) == 1 and mw.reviewer.state == "question", "native Easy after two-hour HoldUp")
+        assert mw.reviewer.card.id != first_id and not runtime.flow.active
+        assert len(col.get_review_logs(first_id)) == 1 and col.get_card(first_id).ivl >= 1
+        undo()
+        wait_for(lambda: mw.reviewer.state == "question" and mw.reviewer.card.id == first_id
+                 and not runtime.flow.active, "Undo Easy returns the original marked card")
+        assert mw.reviewer._v3 is not None
+        assert snapshot(col.get_card(first_id)) == before
+        assert not col.get_review_logs(first_id) and queue.get(first_id) == two_hours
+        assert expect_counts(1, ready=0) == [2, 0, 0]
+        mw.form.actionRedo.trigger()
+        wait_for(lambda: len(col.get_review_logs(first_id)) == 1 and mw._background_op_count == 0,
+                 "Redo restores only the native Easy")
+        assert queue.get(first_id) == two_hours
+        assert mw.reviewer.card.id != first_id
+        undo()
+        wait_for(lambda: mw.reviewer.state == "question" and mw.reviewer.card.id == first_id
+                 and not runtime.flow.active, "Undo after Redo returns the marked original")
+        assert snapshot(col.get_card(first_id)) == before
+        assert not col.get_review_logs(first_id) and queue.get(first_id) == two_hours
+        undo()
+        wait_for(lambda: queue.get(first_id) is None, "second Undo removes only the two-hour appointment")
+        assert snapshot(col.get_card(first_id)) == before and not col.get_review_logs(first_id)
+        answered.clear()
+        mw.addonManager.writeConfig("holdup", {"interval_seconds": 120, "interval_mode": "next_study_day"})
+        if mw.reviewer.state == "question":
+            show_answer()
+        else:
+            wait_for(button_ready, "HoldUp after appointment Undo")
+        print("PASS two-hour HoldUp, native Easy and independent Undo steps", flush=True)
+
         def cancel_saved_study_day():
             dialog = app.activeModalWidget()
             mode = dialog.findChild(QRadioButton, "holdup-mode-next-study-day") if dialog else None
@@ -409,6 +451,31 @@ def main(base: Path, archive: Path, steps: str, language: str) -> None:
         assert practice_native_counts[0] == 1
         assert expect_counts(1, ready=1) == plus_practice(practice_native_counts, 1)
         assert js("document.querySelector('#holdup-queue-counts .review-count').getAttribute('aria-current')") == "true"
+        # Even an already-ready practice appearance must not mask the original
+        # restored by native Undo. A redraw must keep its normal rating buttons.
+        undo()
+        wait_for(lambda: mw.reviewer.state == "question" and mw.reviewer.card.id == first_id
+                 and not runtime.flow.active, "Undo Good returns native original before ready practice")
+        assert queue.get(first_id) == request and not col.get_review_logs(first_id)
+        assert snapshot(col.get_card(first_id)) == before
+        mw.form.actionRedo.trigger()
+        wait_for(lambda: runtime.flow.active == request and mw._background_op_count == 0,
+                 "Redo native Good restores ready practice")
+        undo()
+        wait_for(lambda: mw.reviewer.state == "question" and mw.reviewer.card.id == first_id
+                 and not runtime.flow.active, "second native Undo takes priority over ready practice")
+        assert queue.get(first_id) == request and not col.get_review_logs(first_id)
+        mw.reviewer.nextCard()
+        assert mw.reviewer.card.id == first_id and not runtime.flow.active
+        show_answer()
+        assert js("document.querySelectorAll('#middle button[data-ease]').length") == 4
+        assert js("document.querySelector('.holdup-practice-label') === null", mw.web)
+        answered.clear()
+        js("document.querySelector('#middle button[data-ease=\"3\"]').click(); true")
+        wait_for(lambda: len(answered) == 1 and runtime.flow.active == request
+                 and mw.reviewer.state == "question", "explicit Good resumes independent practice after Undo")
+        after_good = snapshot(col.get_card(first_id))
+        assert len(col.get_review_logs(first_id)) == 1
         print("PASS virtual request, native Good, new limit and green grouping", flush=True)
 
         def show_practice_answer():
@@ -700,6 +767,33 @@ def main(base: Path, archive: Path, steps: str, language: str) -> None:
         wait_for(lambda: {w for w in app.topLevelWidgets() if w.isVisible()} == windows,
                  "no extra windows after operation")
         print("PASS practice-only flow, Space, passive status and Undo without windows", flush=True)
+
+        # The same native Undo must return the original after the last answer
+        # has already taken Anki to its finished-for-today overview.
+        undo_deck = col.decks.id("Undo original")
+        note = col.new_note(model)
+        note.fields[0], note.fields[1] = "Undo last original", "Last answer"
+        col.add_note(note, undo_deck)
+        undo_id = note.card_ids()[0]
+        undo_before = snapshot(col.get_card(undo_id))
+        col.decks.select(undo_deck)
+        mw.addonManager.writeConfig("holdup", {"interval_seconds": 7200, "interval_mode": "seconds"})
+        mw.moveToState("review")
+        show_answer()
+        js("document.getElementById('holdup-button').click(); true")
+        wait_for(lambda: not runtime.busy and queue.get(undo_id) is not None, "last-card HoldUp")
+        last_request = queue.get(undo_id)
+        js("document.querySelector('#middle button[data-ease=\"4\"]').click(); true")
+        wait_for(lambda: mw.state == "overview" and mw._background_op_count == 0, "last original answered")
+        undo()
+        wait_for(lambda: mw.state == "review" and mw.reviewer.state == "question"
+                 and mw.reviewer.card.id == undo_id and not runtime.flow.active,
+                 "Undo from finished overview returns original")
+        assert snapshot(col.get_card(undo_id)) == undo_before
+        assert not col.get_review_logs(undo_id) and queue.get(undo_id) == last_request
+        assert mw.reviewer._v3 is not None
+        assert expect_counts(1, ready=0) == [1, 0, 0]
+        print("PASS native answer Undo from finished overview preserves appointment", flush=True)
     except BaseException:
         import traceback
         traceback.print_exc(file=sys.stdout)

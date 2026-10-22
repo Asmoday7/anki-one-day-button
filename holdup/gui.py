@@ -208,8 +208,17 @@ class PracticeRuntime:
         config = self.settings()
         reviewer = self.mw.reviewer
         reviewer._clear_auto_advance_timers()
-        self.perform(lambda q: q.enqueue(card_id, config["interval_seconds"], now_ms(),
-                                        next_study_day=config["interval_mode"] == MODE_STUDY_DAY),
+
+        def enqueue(queue):
+            changes = queue.enqueue(card_id, config["interval_seconds"], now_ms(),
+                                    next_study_day=config["interval_mode"] == MODE_STUDY_DAY)
+            # update_card() invalidates Anki's cached queues. The displayed
+            # original stays on screen, so rebuild before its native answer:
+            # otherwise that answer has no queue snapshot for Undo to restore.
+            queue.col.sched.get_queued_cards()
+            return changes
+
+        self.perform(enqueue,
                      lambda: self.controller.on_deferred(card_id), initiator=reviewer)
 
     def repeat(self, request: TimedRequest, success: Callable | None = None) -> None:
@@ -308,6 +317,12 @@ class PracticeRuntime:
             self.controller.on_answer(self.mw.reviewer.card)
 
     def open_practice(self) -> None:
+        self._open_review(lambda: bool(self.flow.due()))
+
+    def open_undone_card(self) -> None:
+        self._open_review(lambda: self.flow._undo_card_id is not None)
+
+    def _open_review(self, should_enter: Callable[[], bool]) -> None:
         # Let the overview finish navigating before reusing its webviews.
         # Otherwise a late congrats-page load can replace the reviewer page.
         if self.mw.col is None or self.mw.state not in ("overview", "deckBrowser"):
@@ -333,7 +348,7 @@ class PracticeRuntime:
                         or self.mw.web.page().isLoading() or self.mw.bottomWeb.page().isLoading()
                         or not self.mw.web._domDone or not self.mw.bottomWeb._domDone):
                     QTimer.singleShot(50, enter)
-                elif self.flow.due():
+                elif should_enter():
                     self.mw.moveToState("review")
 
             if self.mw.web.page().url().path().rstrip("/").endswith("/congrats"):

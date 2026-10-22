@@ -183,11 +183,11 @@ def install(mw: Any) -> bool:
         "reviewer_did_show_answer", "reviewer_did_show_question",
         "reviewer_will_end", "profile_will_close", "state_did_change",
         "reviewer_will_answer_card", "card_will_show", "overview_will_render_bottom",
-        "backend_did_block", "state_did_undo",
+        "backend_did_block", "state_did_undo", "reviewer_did_answer_card",
     )
     context_type = getattr(reviewer_module, "ReviewerBottomBar", None)
     flow_methods = (
-        "_get_next_v3_card", "_showAnswerButton", "_showEaseButtons",
+        "nextCard", "_get_next_v3_card", "_showAnswerButton", "_showEaseButtons",
         "_run_state_mutation_hook", "_auto_advance_to_answer_if_enabled",
         "_auto_advance_to_question_if_enabled", "_clear_auto_advance_timers",
         "onEnterKey",

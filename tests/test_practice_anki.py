@@ -4,6 +4,7 @@ import json
 import time
 from contextlib import closing
 from datetime import datetime
+from types import SimpleNamespace
 
 import pytest
 
@@ -337,6 +338,95 @@ def test_native_answer_with_cached_states_preserves_request_and_removal(col):
     col.sched.answer_card(answer)
     assert queue.get(card.id) is None
     assert len(col.get_review_logs(card.id)) == 2
+
+
+@pytest.mark.parametrize("kind", ["new", "random_new", "learning", "review"])
+def test_runtime_two_hour_mark_then_native_easy_undo_returns_original(col, kind):
+    """Exercise defer itself; queue/count assertions before Easy hid this bug."""
+    pytest.importorskip("aqt", reason="Install GUI dependencies for runtime contracts")
+    from aqt.reviewer import V3CardInfo
+
+    from holdup.gui import PracticeRuntime
+
+    cid = col.find_cards("")[0]
+    if kind == "learning":
+        answer_next(col, CardAnswer.GOOD)
+        assert col.get_card(cid).queue == 1
+    elif kind == "review":
+        answer_next(col, CardAnswer.EASY)
+        col.sched.set_due_date([cid], "0")
+        assert col.get_card(cid).queue == 2
+    else:
+        config = col.decks.config_dict_for_deck_id(1)
+        if kind == "random_new":
+            config["newGatherPriority"], config["newSortOrder"] = 4, 4
+        col.decks.update_config(config)
+        for index in range(5):
+            note = col.new_note(col.models.by_name("Basic"))
+            note["Front"], note["Back"] = f"Other new {index}", "Answer"
+            col.add_note(note, 1)
+
+    queued = col.sched.get_queued_cards()
+    cid = queued.cards[0].card.id
+    card = col.get_card(cid)
+    card.start_timer()
+    before = scheduling_snapshot(card)
+    before_logs = review_logs(col, cid)
+    reviewer = SimpleNamespace(
+        card=card, _v3=V3CardInfo.from_queue(queued), _holdup_practice=False,
+        _clear_auto_advance_timers=lambda: None,
+    )
+    runtime = PracticeRuntime.__new__(PracticeRuntime)
+    runtime.mw = SimpleNamespace(col=col, reviewer=reviewer)
+    runtime.settings = lambda: {"interval_seconds": 7200, "interval_mode": "seconds"}
+    completed = []
+    runtime.controller = SimpleNamespace(on_deferred=completed.append)
+
+    def perform(operation, success, *, initiator):
+        # Only the Qt worker boundary is synchronous here: use the real
+        # production defer operation against Anki's actual collection.
+        assert initiator is reviewer
+        operation(PracticeQueue(col))
+        success()
+
+    runtime.perform = perform
+    runtime.defer(cid)
+    queue = PracticeQueue(col)
+    request = queue.get(cid)
+    assert completed == [cid] and request.interval_seconds == 7200
+    assert request.original_queue is None
+    assert reviewer.card is card and reviewer._v3 is not None
+    assert scheduling_snapshot(col.get_card(cid)) == before
+    assert review_logs(col, cid) == before_logs
+    mark_step = col.undo_status().last_step
+
+    # Do not fetch native queues or counts here: that would repair the bug
+    # accidentally instead of proving runtime.defer already repaired it.
+    answer = col.sched.build_answer(card=card, states=reviewer._v3.states, rating=CardAnswer.EASY)
+    col.sched.answer_card(answer)
+    answered = scheduling_snapshot(col.get_card(cid))
+    assert answered["queue"] == 2 and answered["ivl"] >= 1
+    assert len(col.get_review_logs(cid)) == len(before_logs) + 1
+    assert queue.get(cid) == request
+    answer_step = col.undo_status().last_step
+    assert answer_step != mark_step
+    col.sched.get_queued_cards()  # Reviewer advances after the native answer.
+
+    undone = col.undo()
+    assert undone.counter == answer_step
+    assert col.sched.get_queued_cards().cards[0].card.id == cid
+    assert scheduling_snapshot(col.get_card(cid)) == before
+    assert review_logs(col, cid) == before_logs
+    assert queue.get(cid) == request  # Undo the rating, not the separate mark.
+
+    col.redo()
+    assert scheduling_snapshot(col.get_card(cid)) == answered
+    assert queue.get(cid) == request
+    col.undo()
+    col.undo()
+    assert queue.get(cid) is None  # A second Undo removes only the mark.
+    assert scheduling_snapshot(col.get_card(cid)) == before
+    assert review_logs(col, cid) == before_logs
 
 
 @pytest.mark.parametrize("rating", [CardAnswer.AGAIN, CardAnswer.HARD, CardAnswer.GOOD, CardAnswer.EASY])

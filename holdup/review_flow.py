@@ -4,13 +4,16 @@ Only GUI methods are adapted. The scheduler and its queue are left intact.
 Private reviewer methods are version-sensitive: see the desktop contract tests.
 """
 
+from copy import deepcopy
 import json
 import secrets
 from html import escape
 from typing import Any
 
+from anki.errors import NotFoundError
 from aqt import gui_hooks
 from aqt.overview import OverviewBottomBar
+from aqt.qt import QTimer
 from aqt.reviewer import ReviewerBottomBar
 
 from .practice import MODE_STUDY_DAY, PracticeQueue, interval_label, native_due_ms
@@ -30,9 +33,19 @@ class ReviewFlow:
         self.token = None
         self._requests = []
         self._native_counts = [0, 0, 0]
+        self._answer_collection = None
+        self._native_answers = {}
+        self._undo_card_id = None
+        self._undo_info = None
+        self._redo_stack = []
+        self._undo_pending = False
+        self._last_step = None
+        self._defer_native_advance = False
+        self._native_advance = None
         self.reviewer._holdup_practice = False
         self._original = {}
         for name, replacement in (
+            ("nextCard", self.next_card),
             ("_get_next_v3_card", self.select),
             ("_showAnswerButton", self.question_buttons),
             ("_showEaseButtons", self.answer_buttons),
@@ -44,8 +57,11 @@ class ReviewFlow:
             self._original[name] = getattr(self.reviewer, name)
             setattr(self.reviewer, name, replacement)
         gui_hooks.reviewer_will_answer_card.append(self.guard_rating)
+        gui_hooks.reviewer_did_answer_card.append(self.native_answered)
+        gui_hooks.state_did_undo.append(self.on_undo)
+        gui_hooks.operation_did_execute.append(self.on_operation)
         gui_hooks.reviewer_will_end.append(self.clear)
-        gui_hooks.profile_will_close.append(self.clear)
+        gui_hooks.profile_will_close.append(self.close)
         gui_hooks.card_will_show.append(self.decorate)
         gui_hooks.webview_did_receive_js_message.append(self.message)
         gui_hooks.overview_will_render_bottom.append(self.overview_bottom)
@@ -55,7 +71,91 @@ class ReviewFlow:
         self.active = self.collection = self.token = None
         self._requests = []
         self._native_counts = [0, 0, 0]
+        self._undo_card_id = None
+        self._undo_info = None
+        self._defer_native_advance = False
+        self._native_advance = None
         self.reviewer._holdup_practice = False
+
+    def close(self, *_args):
+        self.clear()
+        self._answer_collection = None
+        self._native_answers.clear()
+        self._redo_stack.clear()
+        self._undo_pending = False
+        self._last_step = None
+
+    def native_answered(self, reviewer, card, _ease):
+        if reviewer is not self.reviewer or reviewer._holdup_practice:
+            return
+        if self._answer_collection is not self.mw.col:
+            self._native_answers.clear()
+            self._answer_collection = self.mw.col
+        self._last_step = self.mw.col.undo_status().last_step
+        # Keep the exact states/context originally presented by Anki, including
+        # custom scheduling. A newly-due learning card can head the rebuilt queue
+        # when this answer is undone; returning the original is a GUI action.
+        self._native_answers[self._last_step] = (card.id, deepcopy(reviewer._v3))
+        self._redo_stack.clear()
+        self._undo_card_id = None
+        self._undo_info = None
+        self._defer_native_advance = True
+
+    def next_card(self):
+        if not self._defer_native_advance:
+            return self._original["nextCard"]()
+        self._defer_native_advance = False
+        collection, card = self.mw.col, self.reviewer.card
+
+        def advance():
+            if (self.mw.col is collection and self.mw.state == "review"
+                    and self.reviewer.card is card and self.reviewer.state == "transition"):
+                self._original["nextCard"]()
+
+        # The answer is already recorded. Navigate after its operation hooks,
+        # so the last native card cannot render the congrats page twice.
+        self._native_advance = advance
+
+    def on_undo(self, changes):
+        self._undo_card_id = None
+        self._undo_info = None
+        if self.mw.col is not self._answer_collection:
+            return
+        info = self._native_answers.get(changes.counter)
+        self._redo_stack.append((changes.operation, info))
+        self._last_step = changes.new_status.last_step
+        self._undo_pending = True
+        if info is None:
+            return  # Metadata Undo retains the normal practice merge policy.
+        self._undo_card_id, _ = info
+        self._undo_info = info
+        self.active = self.token = None
+        if self.mw.state == "overview":
+            self.runtime.open_undone_card()
+
+    def on_operation(self, *_args):
+        if self._native_advance is not None:
+            advance, self._native_advance = self._native_advance, None
+            QTimer.singleShot(0, advance)
+        if self.mw.col is not self._answer_collection:
+            return
+        if self._undo_pending:
+            self._undo_pending = False
+            return  # state_did_undo already recorded this operation.
+        status = self.mw.col.undo_status()
+        if status.last_step == self._last_step:
+            return
+        self._last_step = status.last_step
+        # Redo has no state_did_redo hook. Match the operation name supplied by
+        # Anki itself (in its current language), not a hard-coded translation.
+        if self._redo_stack and status.undo == self._redo_stack[-1][0]:
+            _operation, info = self._redo_stack.pop()
+            if info is not None:
+                self._native_answers[status.last_step] = info
+            if self._redo_stack and status.redo != self._redo_stack[-1][0]:
+                self._redo_stack.clear()
+        else:
+            self._redo_stack.clear()
 
     def requests(self):
         col = self.mw.col
@@ -113,13 +213,46 @@ class ReviewFlow:
         self._original["_get_next_v3_card"]()
         self._native_counts = (list(r._v3.counts()[1]) if r._v3 is not None
                                else list(self.mw.col.sched.counts()))
-        # Merge deadlines with the real native head, never scan past it: Anki
-        # rejects native answers that aren't at the top of its own queue.
+        # Anki restored a native answer. Keep its original on screen until it
+        # is answered/left, even if a separate practice appearance is ready.
+        # If another learning card became due while the original was open,
+        # Anki's rebuilt head may differ. Restore its saved native presentation,
+        # leaving the backend queue untouched. These are real scheduling states.
+        if self._undo_info:
+            try:
+                card = self.mw.col.get_card(self._undo_card_id)
+            except NotFoundError:
+                # A normal delete action can remove the restored original.
+                # Continue with Anki's available head instead of a stale pin.
+                self._undo_info = self._undo_card_id = None
+            else:
+                expected = self._undo_info[1].top_card().card
+                restored = (
+                    (card.reps, card.queue, card.type, card.due, card.did)
+                    == (expected.reps, expected.queue, expected.ctype, expected.due, expected.deck_id)
+                    and card.odid == 0 and card.did in self.mw.col.decks.active()
+                )
+                if not restored:
+                    # Redo/external operations can refresh before our operation
+                    # hook runs. Never reuse pre-answer states for a changed card.
+                    self._undo_info = self._undo_card_id = None
+                elif r.card is None or r.card.id != self._undo_card_id:
+                    r.card = card
+                    r.card.start_timer()
+                    r._v3 = deepcopy(self._undo_info[1])
+                    for name, count in zip(("new_count", "learning_count", "review_count"), self._native_counts):
+                        setattr(r._v3.queued_cards, name, count)
+        undo_native = r.card is not None and r.card.id == self._undo_card_id
+        if not undo_native:
+            self._undo_card_id = None
+            self._undo_info = None
+        # Ordinary study merges with Anki's native head. Only Undo restores an
+        # already-presented original ahead of the regular merge.
         clock = now_ms()
         sched = self.mw.col.sched
         insert_practice = ready and (r.card is None or ready[0].due_ms <= native_due_ms(
             r.card, clock, sched.today, sched.day_cutoff))
-        request = current or (ready[0] if insert_practice else None)
+        request = None if undo_native else current or (ready[0] if insert_practice else None)
         self.active = request
         self.collection = self.mw.col
         if request is not None:

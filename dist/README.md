@@ -1,6 +1,6 @@
 # HoldUp: установочный архив
 
-Текущая тестовая версия — **[holdup-0.4.1-dev.ankiaddon](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-0.4.1-dev.ankiaddon)**.
+Текущая тестовая версия — **[holdup-0.4.2-dev.ankiaddon](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-0.4.2-dev.ankiaddon)**.
 
 **HoldUp - Отправь карточку и в FSRS, и отдельную очередь!**
 
@@ -17,6 +17,11 @@ HoldUp сначала назначает дополнительный показ
 Затем пользователь выбирает обычную оценку Anki/FSRS. Дополнительная практика
 сохраняет свой срок и не записывает собственных оценок FSRS.
 
+После **HoldUp → обычная оценка → Undo** отменяется только обычная оценка:
+оригинал возвращается, срок практики остаётся. Следующий Undo отменяет назначение
+HoldUp, если не было другого действия с коллекцией. Отмена повтора или **Готово**
+затрагивает только практику.
+
 [English user guide](../USER_GUIDE.md) · [Русская инструкция](../USER_GUIDE.ru.md) ·
 [Ручная проверка](../TESTING.md).
 
@@ -30,4 +35,4 @@ python tools/package_addon.py
 ```
 
 Результат — `.dev/dist/holdup.ankiaddon`. Для публикации скопируйте проверенную
-сборку в `dist/holdup-0.4.1-dev.ankiaddon` и обновите SHA256SUMS.
+сборку в `dist/holdup-0.4.2-dev.ankiaddon` и обновите SHA256SUMS.
