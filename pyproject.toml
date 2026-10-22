@@ -1,0 +1,8 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers"
+markers = [
+    "anki_contract: API probes and storage integration against the real Anki backend, without GUI",
+    "anki_gui: optional desktop Anki/Qt checks in an isolated profile, requires aqt",
+]

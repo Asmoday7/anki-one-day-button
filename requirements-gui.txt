@@ -1,0 +1,2 @@
+-r requirements-anki.txt
+aqt[qt]==26.9.3
