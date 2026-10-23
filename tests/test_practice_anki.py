@@ -489,12 +489,12 @@ def test_virtual_requests_do_not_refill_or_bypass_daily_new_limit(col):
     assert not col.sched.get_queued_cards().cards
     assert col.sched.counts() == (0, 0, 0)
     assert set(col.find_cards("is:new")) == all_ids - set(introduced)
-    assert len(queue.all()) == 2 and set(col.find_cards("")) == all_ids
+    assert len(queue.all()) == 6 and set(col.find_cards("")) == all_ids
     # Practice and its removal don't replenish the native daily allowance.
     for request in queue.all():
         queue.repeat(request, 1, request.due_ms)
         assert not col.sched.get_queued_cards().cards
-        queue.release(queue.get(request.card_id))
+        queue.release(queue.get(request.card_id, request.request_id))
         assert not col.sched.get_queued_cards().cards
     assert set(col.find_cards("is:new")) == all_ids - set(introduced)
 

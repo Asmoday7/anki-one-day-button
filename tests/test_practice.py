@@ -36,6 +36,12 @@ def test_request_rejects_invalid_identity_time_or_queue(args):
         TimedRequest(*args)
 
 
+@pytest.mark.parametrize("identity", [None, 1, True, "", "a" * 31, "z" * 32, "A" * 32])
+def test_request_rejects_invalid_appearance_identity(identity):
+    with pytest.raises(ValueError):
+        TimedRequest(1, 1000, 1, request_id=identity)
+
+
 def test_merge_deadlines_distinguishes_timestamps_days_and_new_positions():
     from datetime import datetime, timedelta
     from types import SimpleNamespace

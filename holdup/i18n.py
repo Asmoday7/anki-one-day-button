@@ -51,6 +51,7 @@ RUSSIAN = {
     "Extra practice in {interval}.": "Отдельная практика через {interval}.",
     "No FSRS rating is recorded. The original stays in Anki: choose a normal rating separately.": "Оценка FSRS не записывается. Оригинал остаётся в Anki: выберите обычную оценку отдельно.",
     "Extra practice scheduled. Now choose a normal Anki rating.": "Дополнительный показ назначен. Теперь выберите обычную оценку Anki.",
+    "Each press adds a separate extra appearance.": "Каждое нажатие добавляет отдельный дополнительный повтор.",
     "HoldUp: ready {count} (including subdecks)": "HoldUp: к повторению {count} (включая подколоды)",
 }
 

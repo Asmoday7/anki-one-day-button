@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+import secrets
 from typing import Any
 
 from .i18n import tr
@@ -67,6 +68,7 @@ class TimedRequest:
     interval_seconds: int
     original_queue: int | None = None
     next_study_day: bool = False
+    request_id: str = "legacy"
 
     def __post_init__(self) -> None:
         _check_integer(self.card_id, "card_id", 1)
@@ -74,6 +76,11 @@ class TimedRequest:
         if self.due_ms > 2**53 - 1:
             raise ValueError("Deadline exceeds exact numeric search range")
         validate_interval(self.interval_seconds)
+        if (not isinstance(self.request_id, str)
+                or (self.request_id != "legacy" and (
+                    len(self.request_id) != 32
+                    or any(c not in "0123456789abcdef" for c in self.request_id)))):
+            raise ValueError("Invalid practice appearance identity")
         if type(self.next_study_day) is not bool or (self.next_study_day and self.interval_seconds != 86400):
             raise ValueError("Invalid next-study-day interval")
         if self.original_queue is not None and (
@@ -107,21 +114,44 @@ class PracticeQueue:
     def __init__(self, collection: Any) -> None:
         self.col = collection
 
-    def _overrides(self) -> dict[str, list | None]:
+    def _overrides(self) -> dict[str, list[list]]:
         raw = self.col.get_config(CONFIG_KEY)
         if raw is None:
             return {}
-        if not isinstance(raw, dict) or raw.get("v") != 1 or type(raw.get("v")) is not int:
+        if not isinstance(raw, dict) or raw.get("v") not in (1, 2) or type(raw.get("v")) is not int:
             raise UnsupportedRequestVersion("Unsupported HoldUp collection data; not overwritten")
         cards = raw.get("cards")
         if not isinstance(cards, dict) or set(raw) != {"v", "cards"}:
             raise InvalidRequestData("Invalid HoldUp collection data")
+        normalized = {}
         for key, value in cards.items():
             if (not isinstance(key, str) or not key.isdecimal()
                     or str(int(key)) != key or int(key) < 1):
                 raise InvalidRequestData("Invalid HoldUp card identity")
-            self._from_override(int(key), value)
-        return dict(cards)
+            if raw["v"] == 1:
+                request = self._from_override(int(key), value)
+                normalized[key] = [self._entry(request)] if request else []
+            else:
+                if not isinstance(value, list):
+                    raise InvalidRequestData("Invalid HoldUp appearance list")
+                requests = [self._from_entry(int(key), entry) for entry in value]
+                if len({r.request_id for r in requests}) != len(requests):
+                    raise InvalidRequestData("Duplicate HoldUp appearance identity")
+                normalized[key] = [self._entry(request) for request in requests]
+        return normalized
+
+    @staticmethod
+    def _entry(request):
+        return [request.request_id, request.due_ms, request.interval_seconds, request.next_study_day]
+
+    @staticmethod
+    def _from_entry(card_id, entry):
+        if not isinstance(entry, list) or len(entry) != 4:
+            raise InvalidRequestData("Invalid HoldUp appearance")
+        try:
+            return TimedRequest(card_id, entry[1], entry[2], next_study_day=entry[3], request_id=entry[0])
+        except ValueError as error:
+            raise InvalidRequestData("Invalid HoldUp appearance") from error
 
     @staticmethod
     def _from_override(card_id, value):
@@ -135,24 +165,49 @@ class PracticeQueue:
             raise InvalidRequestData("Invalid HoldUp appointment") from error
 
     def _save_overrides(self, cards, name="HoldUp: schedule practice"):
-        # A compact value: about 50 bytes per active appointment. Anki includes
+        # A compact value: about 90 bytes per active appointment. Anki includes
         # collection config in sync; it is intended for a modest practice list.
         step = self.col.add_custom_undo_entry(tr(name))
-        self.col.set_config(CONFIG_KEY, {"v": 1, "cards": cards}, undoable=True)
+        self.col.set_config(CONFIG_KEY, {"v": 2, "cards": cards}, undoable=True)
         return self.col.merge_undo_entries(step)
 
-    def _save_request(self, request, name):
+    def _card_requests(self, card, cards):
+        key = str(card.id)
+        if key in cards:
+            return [self._from_entry(card.id, entry) for entry in cards[key]]
+        saved = _read(card.id, _decode(card.custom_data))
+        return [saved] if saved else []
+
+    def _save_request(self, request, name, *, append=False):
         cards = self._overrides()
-        cards[str(request.card_id)] = [request.due_ms, request.interval_seconds, request.next_study_day]
+        previous = self._card_requests(self.col.get_card(request.card_id), cards)
+        if append:
+            if any(r.request_id == request.request_id for r in previous):
+                raise PracticeStateChanged("Practice appearance identity already exists")
+            previous.append(request)
+        else:
+            if not any(r.request_id == request.request_id for r in previous):
+                raise PracticeStateChanged("Practice appearance no longer exists")
+            previous = [request if r.request_id == request.request_id else r for r in previous]
+        cards[str(request.card_id)] = [self._entry(r) for r in previous]
         return self._save_overrides(cards, name)
 
-    def get(self, card_id: int) -> TimedRequest | None:
+    def for_card(self, card_id: int) -> list[TimedRequest]:
+        """Saved appearances in creation order, including an older saved request."""
         _check_integer(card_id, "card_id", 1)
         card = self.col.get_card(card_id)
-        cards = self._overrides()
-        if str(card_id) in cards:
-            return self._from_override(card_id, cards[str(card_id)])
-        return _read(card_id, _decode(card.custom_data))
+        return self._card_requests(card, self._overrides())
+
+    def get(self, card_id: int, request_id: str | None = None) -> TimedRequest | None:
+        """Look up an identity; without one, return the most recently added item.
+
+        Practice actions always supply the appearance identity. The shorthand
+        is useful when inspecting a newly scheduled card, not for completion.
+        """
+        requests = self.for_card(card_id)
+        if request_id is None:
+            return requests[-1] if requests else None
+        return next((r for r in requests if r.request_id == request_id), None)
 
     def all(self) -> list[TimedRequest]:
         from anki.errors import NotFoundError
@@ -162,12 +217,7 @@ class PracticeQueue:
         requests = []
         for cid in ids:
             try:
-                if str(cid) in cards:
-                    self.col.get_card(cid)  # Deleted cards never enter practice.
-                    request = self._from_override(cid, cards[str(cid)])
-                else:
-                    request = _read(cid, _decode(self.col.get_card(cid).custom_data))
-                requests.append(request)
+                requests.extend(self._card_requests(self.col.get_card(cid), cards))
             except NotFoundError:
                 continue
         return sorted((r for r in requests if r is not None), key=lambda r: (r.due_ms, r.card_id))
@@ -180,9 +230,9 @@ class PracticeQueue:
         )
 
     def _write(self, card: Any, data: dict[str, Any], request: TimedRequest,
-               name="HoldUp: schedule practice") -> Any:
+               name="HoldUp: schedule practice", *, append=False) -> Any:
         if request.original_queue is None:
-            return self._save_request(request, name)
+            return self._save_request(request, name, append=append)
         data.update(odbv=3 if request.next_study_day else 2,
                     odbat=request.due_ms, odbsecs=request.interval_seconds)
         if request.next_study_day:
@@ -200,7 +250,7 @@ class PracticeQueue:
             card.queue = -1  # Persistent pause; unlike bury, does not expire daily.
         return self.col.update_card(card)
 
-    def _request(self, card_id, seconds, clock, original_queue, next_study_day):
+    def _request(self, card_id, seconds, clock, original_queue, next_study_day, *, request_id="legacy"):
         if type(next_study_day) is not bool:
             raise ValueError("Invalid next-study-day mode")
         due = self.col.sched.day_cutoff * 1000 if next_study_day else clock + seconds * 1000
@@ -209,7 +259,7 @@ class PracticeQueue:
         # For calendar mode 86400 is a nominal day, not the elapsed duration.
         # Schema 3 records that distinction; the exact cutoff is stored in due.
         return TimedRequest(card_id, due, 86400 if next_study_day else seconds,
-                            original_queue, next_study_day)
+                            original_queue, next_study_day, request_id)
 
     def enqueue(self, card_id: int, seconds: int, now_ms: int, *, pause: bool = False,
                 next_study_day: bool = False) -> Any:
@@ -220,22 +270,24 @@ class PracticeQueue:
         if card.odid or card.queue not in ACTIVE_QUEUES:
             raise PracticeStateChanged("Card is no longer available in ordinary review")
         data = _decode(card.custom_data)
-        old = self.get(card_id)
-        if old is not None and old.original_queue is not None:
+        old = self.for_card(card_id)
+        if any(r.original_queue is not None for r in old) or (pause and old):
             raise PracticeStateChanged("Existing paused request changed outside HoldUp")
-        request = self._request(card_id, seconds, now_ms, card.queue if pause else None, next_study_day)
-        return self._write(card, data, request)
+        request = self._request(card_id, seconds, now_ms, card.queue if pause else None, next_study_day,
+                                request_id="legacy" if pause else secrets.token_hex(16))
+        return self._write(card, data, request, append=True)
 
     def repeat(self, expected: TimedRequest, seconds: int, now_ms: int, *, next_study_day: bool = False) -> Any:
         validate_interval(seconds)
         _check_integer(now_ms, "now_ms")
         card = self.col.get_card(expected.card_id)
         data = _decode(card.custom_data)
-        if self.get(card.id) != expected or not self.available(expected):
+        if self.get(card.id, expected.request_id) != expected or not self.available(expected):
             raise PracticeStateChanged("Practice request changed; reload the list")
         if expected.due_ms > now_ms:
             raise PracticeStateChanged("Practice is not due yet")
-        request = self._request(card.id, seconds, now_ms, expected.original_queue, next_study_day)
+        request = self._request(card.id, seconds, now_ms, expected.original_queue, next_study_day,
+                                request_id=expected.request_id)
         return self._write(card, data, request, "HoldUp: repeat practice")
 
     def _release_card(self, expected: TimedRequest) -> Any:
@@ -265,7 +317,7 @@ class PracticeQueue:
         Preflight the whole batch. A changed external queue is preserved; a
         paused card moved to a filtered deck needs explicit manual recovery.
         """
-        if not expected or len({r.card_id for r in expected}) != len(expected):
+        if not expected or len({(r.card_id, r.request_id) for r in expected}) != len(expected):
             raise ValueError("Expected a nonempty list of distinct requests")
         cards = []
         for request in expected:
@@ -284,21 +336,24 @@ class PracticeQueue:
 
     def release_all(self, expected: list[TimedRequest], *, name="HoldUp: clear all practice") -> Any:
         """One native undoable batch; preflight every request before any write."""
-        if not expected or len({r.card_id for r in expected}) != len(expected):
+        if not expected or len({(r.card_id, r.request_id) for r in expected}) != len(expected):
             raise ValueError("Expected a nonempty list of distinct requests")
         entries = self._overrides()
         cards = []
         native = False
         for request in expected:
-            if self.get(request.card_id) != request:
+            if self.get(request.card_id, request.request_id) != request:
                 raise PracticeStateChanged("Practice request changed; reload the list")
             if request.original_queue is not None:
                 cards.append(self._release_card(request))
             else:
                 native = True
-                data = _decode(self.col.get_card(request.card_id).custom_data)
-                if any(key in data for key in KEYS):
-                    entries[str(request.card_id)] = None
+                card = self.col.get_card(request.card_id)
+                remaining = [r for r in self._card_requests(card, entries)
+                             if r.request_id != request.request_id]
+                data = _decode(card.custom_data)
+                if remaining or any(key in data for key in KEYS):
+                    entries[str(request.card_id)] = [self._entry(r) for r in remaining]
                 else:
                     entries.pop(str(request.card_id), None)
         if not cards:

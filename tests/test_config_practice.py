@@ -56,10 +56,13 @@ def test_random_reviews_stay_answerable_after_reading_then_holdup(col, rating):
 
 
 @pytest.mark.parametrize("raw", [
-    {"v": True, "cards": {}}, {"v": 2, "cards": {}}, {"v": 1, "cards": []},
+    {"v": True, "cards": {}}, {"v": 3, "cards": {}}, {"v": 1, "cards": []},
     {"v": 1, "cards": {"01": None}}, {"v": 1, "cards": {"0": None}},
     {"v": 1, "cards": {"1": [123, 0, False]}},
     {"v": 1, "cards": {"1": [123, 60, True]}},
+    {"v": 2, "cards": {"1": None}},
+    {"v": 2, "cards": {"1": [["bad-id", 123, 60, False]]}},
+    {"v": 2, "cards": {"1": [["legacy", 123, 60, False], ["legacy", 124, 60, False]]}},
 ])
 def test_unsupported_collection_practice_data_is_not_overwritten(col, raw):
     col.set_config(CONFIG_KEY, raw)
@@ -110,8 +113,9 @@ def test_clearing_mixed_saved_pause_and_new_appointment_is_one_undo(col):
     queue = PracticeQueue(col)
     queue.enqueue(first, 1, 1000, pause=True)
     queue.enqueue(second, 3600, 1000)
+    queue.enqueue(second, 7200, 1000)
     requests = queue.all()
-    assert len(requests) == 2
+    assert len(requests) == 3
     queue.release_all(requests)
     assert queue.all() == [] and col.get_card(first).queue == 0
     col.undo()

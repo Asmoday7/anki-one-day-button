@@ -9,7 +9,7 @@ for eight days from now while you would like to see it again tomorrow.
 ## Install
 
 If another copy of this add-on is installed, disable it in **Tools → Add-ons**
-and restart Anki. Install [the archive](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-0.4.4-dev.ankiaddon)
+and restart Anki. Install [the archive](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-0.5.0-dev.ankiaddon)
 through **Tools → Add-ons → Install from file**, then restart Anki again.
 
 Cards and practice appointments remain in the collection. Choose your preferred
@@ -25,16 +25,16 @@ another installation. Keep only one copy enabled.
    towards the daily new-card limit.
 
 The extra appearance keeps its own deadline independently of that rating.
-No note or card is duplicated. Each card can have one extra appointment;
-scheduling it again replaces its previous extra deadline.
+No note or card is duplicated. Each **HoldUp** press adds a separate extra
+appearance with its own deadline, including for a previously marked card.
 
 If the same card returns through normal study before its extra appearance,
-pressing **HoldUp** again with a fixed interval restarts it from that click. For example,
-an appointment for 15:00 moves to 15:20 if you press HoldUp with a one-hour
-interval again at 14:20. There is still one extra appearance, so the waiting
-count does not increase. **Undo** restores the previous deadline; **Redo**
-restores the exact new deadline.
-In next-study-day mode, the deadline is recalculated from Anki's next day-start boundary.
+pressing **HoldUp** again adds another extra appearance. For example, if the first
+is due at 15:00 and you press HoldUp for one hour again at 14:20, both **15:00
+and 15:20** remain scheduled. The waiting count increases by one. **Undo** removes
+only the last addition; **Redo** restores it with the same deadline.
+Appearances with identical deadlines also remain separate, including those
+scheduled for the next Anki study day.
 
 ## Choose when to practise
 
@@ -57,9 +57,9 @@ to review it; a deadline means readiness, not an interrupting alarm.
 Extra appearances are labelled **HoldUp · practice without an FSRS rating**.
 After showing the answer, choose:
 
-- **Again in …** to schedule another extra appearance.
+- **Again in …** to reschedule only the current extra appearance.
 - **Next study day** to use the next study-day boundary when that mode is selected.
-- **Done** to finish this card's extra practice.
+- **Done** to finish only the current extra appearance.
 - **⋯** to choose time for subsequent appointments.
 
 These actions do not record FSRS ratings. The original continues through Anki's
@@ -69,6 +69,7 @@ normal schedule. Seeing the same word through both schedules within the same stu
 
 During study, **HoldUp: waiting N** shows future extra appointments. Ready practice
 is included in the green review count; its tooltip shows the Anki and HoldUp portions.
+Counts refer to appearances: the same card can occupy several places in the queue.
 
 On **Decks**, a **HoldUp · N** clock badge shows ready practice. Open the deck by
 its usual name. A parent includes its subdecks; parent and child numbers overlap.

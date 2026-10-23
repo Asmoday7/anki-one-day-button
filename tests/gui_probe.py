@@ -160,6 +160,10 @@ def main(base: Path, archive: Path, steps: str, language: str) -> None:
         for count, title in js("Array.from(document.querySelectorAll('.holdup-deck-badge')).map(b=>[b.dataset.count,b.title])", mw.web):
             assert title == (f"HoldUp: к повторению {count} (включая подколоды)" if language == "ru"
                              else f"HoldUp: ready {count} (including subdecks)")
+        # The tree can be ready before Anki's bottom toolbar finishes loading.
+        # Do not issue the next collapse/refresh while that page is replacing
+        # its document: Anki's own height query would then see a null root.
+        wait_page()
 
     def snapshot(card):
         result = {name: getattr(card, name) for name in (
@@ -967,7 +971,7 @@ def main(base: Path, archive: Path, steps: str, language: str) -> None:
         show_answer()
         mw.addonManager.writeConfig("holdup", {"interval_seconds": 2, "interval_mode": "seconds"})
         _controller.on_answer(mw.reviewer.card)
-        wait_for(button_ready, "replace appointment after Undo")
+        wait_for(button_ready, "add another appointment after Undo")
         js("document.getElementById('holdup-button').click(); true")
         wait_for(lambda: not runtime.busy and queue.get(b_id).interval_seconds == 2,
                  "short appointment creates a new history branch")
@@ -1005,11 +1009,14 @@ def main(base: Path, archive: Path, steps: str, language: str) -> None:
                  "Undo repeated Redo restores practice again")
         show_practice_answer()
         js("document.getElementById('holdup-practice-release').click(); true")
-        wait_for(lambda: not runtime.busy and queue.get(b_id) is None, "Done on restored practice")
+        wait_for(lambda: not runtime.busy and queue.get(b_id, short_request.request_id) is None,
+                 "Done on restored practice leaves the older appointment")
+        assert queue.for_card(b_id) == [saved_requests[b_id]]
         undo()
         wait_for(lambda: runtime.flow.active == short_request and mw.reviewer.state == "question",
                  "Undo Done on branch")
-        redo_until(lambda: queue.get(b_id) is None and not runtime.flow.active, "Redo Done on branch")
+        redo_until(lambda: queue.get(b_id, short_request.request_id) is None and not runtime.flow.active,
+                   "Redo Done on branch")
         assert snapshot(col.get_card(b_id)) == native_branch
         assert len(col.get_review_logs(b_id)) == 1
         undo()
@@ -1020,7 +1027,7 @@ def main(base: Path, archive: Path, steps: str, language: str) -> None:
         assert queue.get(b_id) == short_request and not col.get_review_logs(b_id)
         show_answer()
         assert js("document.querySelectorAll('#middle button[data-ease]').length") == 4
-        assert expect_counts(2, ready=1)[0] == 1  # Only the restored original is new today.
+        assert expect_counts(3, ready=1)[0] == 1  # Two future items and one ready appearance.
         assert col.get_card(unused_id).queue == 0 and not col.get_review_logs(unused_id)
         # Rapid repeated menu commands are serialized by Anki too. Restore the
         # exact old deadlines rather than scheduling from the Redo clock.
@@ -1041,8 +1048,8 @@ def main(base: Path, archive: Path, steps: str, language: str) -> None:
         print("PASS four-step Undo/Redo, new branch, repeat, Done and original return", flush=True)
 
         # A native learning appearance can return before the separate HoldUp
-        # appointment. Marking it again replaces the one appointment; it must
-        # not hide another copy behind an unchanged counter.
+        # appointment. Marking it again adds a second independent appearance;
+        # the counter grows and Undo removes only the most recently added one.
         wait_page()
         mw.moveToState("deckBrowser")
         wait_page()
@@ -1075,22 +1082,23 @@ def main(base: Path, archive: Path, steps: str, language: str) -> None:
         show_answer()
         js("document.getElementById('holdup-button').click(); true")
         wait_for(lambda: not runtime.busy and queue.get(replacement_id).due_ms > first_appointment.due_ms,
-                 "second native HoldUp replaces the old deadline")
+                 "second native HoldUp adds another deadline")
         second_appointment = queue.get(replacement_id)
-        assert len([request for request in queue.all() if request.card_id == replacement_id]) == 1
-        assert expect_counts(1, ready=0) == [0, 1, 0]
+        assert queue.for_card(replacement_id) == [first_appointment, second_appointment]
+        assert expect_counts(2, ready=0) == [0, 1, 0]
         assert snapshot(col.get_card(replacement_id)) == learning_state
         assert len(col.get_review_logs(replacement_id)) == 1
         undo()
         assert queue.get(replacement_id) == first_appointment
-        redo_until(lambda: queue.get(replacement_id) == second_appointment, "Redo exact replacement deadline")
-        assert expect_counts(1, ready=0) == [0, 1, 0]
+        redo_until(lambda: queue.get(replacement_id) == second_appointment, "Redo restores exact added deadline")
+        assert queue.for_card(replacement_id) == [first_appointment, second_appointment]
+        assert expect_counts(2, ready=0) == [0, 1, 0]
         if mw.reviewer.state == "question":
             show_answer()
         previous = len(answered)
         js("document.querySelector('#middle button[data-ease=\"4\"]').click(); true")
         wait_for(lambda: len(answered) == previous + 1 and mw.state == "overview",
-                 "native Easy after replacement Redo")
+                 "native Easy after added-appearance Redo")
         assert len(col.get_review_logs(replacement_id)) == 2
         undo()
         expect_original(replacement_id)
@@ -1105,7 +1113,93 @@ def main(base: Path, archive: Path, steps: str, language: str) -> None:
         assert queue.get(replacement_id) == first_appointment
         undo()
         assert queue.get(replacement_id) is None
-        print("PASS repeated native appearance replaces one appointment and Undo restores old deadline", flush=True)
+        print("PASS repeated native appearance adds an appointment and Undo keeps the older one", flush=True)
+
+        # Both appearances of one original can be ready together. Completing
+        # one must advance to the other, with separate tokens and history.
+        mw.addonManager.writeConfig("holdup", {"interval_seconds": 2, "interval_mode": "seconds"})
+        show_answer()
+        js("document.getElementById('holdup-button').click(); true")
+        wait_for(lambda: not runtime.busy and len(queue.for_card(replacement_id)) == 1,
+                 "first short extra appearance")
+        first_copy = queue.get(replacement_id)
+        previous = len(answered)
+        js("document.querySelector('#middle button[data-ease=\"3\"]').click(); true")
+        wait_for(lambda: len(answered) == previous + 1 and mw.reviewer.state == "question",
+                 "native learning before second short appearance")
+        expect_original(replacement_id)
+        show_answer()
+        js("document.getElementById('holdup-button').click(); true")
+        wait_for(lambda: not runtime.busy and len(queue.for_card(replacement_id)) == 2,
+                 "second short extra appearance")
+        second_copy = queue.get(replacement_id)
+        assert first_copy.request_id != second_copy.request_id
+        previous = len(answered)
+        js("document.querySelector('#middle button[data-ease=\"4\"]').click(); true")
+        wait_for(lambda: len(answered) == previous + 1, "normal Easy preserves both short appearances")
+        extra_native_state = snapshot(col.get_card(replacement_id))
+        extra_native_logs = col.get_review_logs(replacement_id)
+        wait_for(lambda: time.time_ns() // 1_000_000 > second_copy.due_ms + 100,
+                 "both appearances become ready")
+        wait_page()
+        mw.moveToState("deckBrowser")
+        wait_page()
+        wait_for(lambda: deck_badges().get(str(replacement_deck)) == 2,
+                 "deck badge counts both appearances of one card")
+        mw.moveToState("overview")
+        wait_page()
+        runtime.open_practice()
+        wait_for(lambda: runtime.flow.active == first_copy and mw.reviewer.state == "question",
+                 "earlier copy appears first")
+        assert expect_counts(2, ready=2) == [0, 0, 2]
+        show_practice_answer()
+        mw.addonManager.writeConfig("holdup", {"interval_seconds": 7200, "interval_mode": "seconds"})
+        runtime.flow.answer_buttons()
+        js("document.getElementById('holdup-practice-repeat').click(); true")
+        wait_for(lambda: not runtime.busy and runtime.flow.active == second_copy
+                 and mw.reviewer.state == "question", "Repeat first copy leaves the second ready")
+        repeated_copy = queue.get(replacement_id, first_copy.request_id)
+        assert repeated_copy.due_ms > second_copy.due_ms
+        assert queue.get(replacement_id, second_copy.request_id) == second_copy
+        assert expect_counts(2, ready=1) == [0, 0, 1]
+        undo()
+        wait_for(lambda: runtime.flow.active == first_copy and mw.reviewer.state == "question",
+                 "Undo Repeat restores only the first copy's time")
+        redo_until(lambda: runtime.flow.active == second_copy
+                   and queue.get(replacement_id, first_copy.request_id) == repeated_copy,
+                   "Redo Repeat retains both identities and the second ready copy")
+        undo()
+        wait_for(lambda: runtime.flow.active == first_copy and mw.reviewer.state == "question",
+                 "restore both ready copies before Done")
+        show_practice_answer()
+        stale_token = runtime.flow.token
+        js("document.getElementById('holdup-practice-release').click(); true")
+        wait_for(lambda: not runtime.busy and runtime.flow.active == second_copy
+                 and mw.reviewer.state == "question", "Done advances to the same card's second copy")
+        assert queue.for_card(replacement_id) == [second_copy]
+        assert expect_counts(1, ready=1) == [0, 0, 1]
+        show_practice_answer()
+        js("pycmd('holdup-practice:release:' + " + repr(stale_token) + "); true")
+        assert queue.for_card(replacement_id) == [second_copy]
+        undo()
+        wait_for(lambda: runtime.flow.active == first_copy and mw.reviewer.state == "question",
+                 "Undo restores first copy independently")
+        assert expect_counts(2, ready=2) == [0, 0, 2]
+        redo_until(lambda: runtime.flow.active == second_copy and len(queue.for_card(replacement_id)) == 1,
+                   "Redo finishes only the first copy")
+        show_practice_answer()
+        js("document.getElementById('holdup-practice-release').click(); true")
+        wait_for(lambda: not runtime.busy and not queue.for_card(replacement_id) and mw.state == "overview",
+                 "Done finishes the second copy")
+        undo()
+        wait_for(lambda: runtime.flow.active == second_copy and mw.reviewer.state == "question",
+                 "Undo last copy returns from finished overview")
+        redo_until(lambda: not queue.for_card(replacement_id) and mw.state == "overview",
+                   "Redo last copy finishes practice")
+        assert snapshot(col.get_card(replacement_id)) == extra_native_state
+        assert col.get_review_logs(replacement_id) == extra_native_logs
+        assert len(col.find_cards(f"did:{replacement_deck}")) == 1
+        print("PASS two ready appearances of one card, separate Done, counts, stale token and Undo/Redo", flush=True)
     except BaseException:
         import traceback
         traceback.print_exc(file=sys.stdout)

@@ -204,7 +204,8 @@
         button.dataset.token = token;
         button.title = (studyDay ? tr("Extra practice at the start of the next Anki study day.")
             : tr("Extra practice in {interval}.", {interval: intervalLabel})) + " " +
-            tr("No FSRS rating is recorded. The original stays in Anki: choose a normal rating separately.");
+            tr("No FSRS rating is recorded. The original stays in Anki: choose a normal rating separately.")
+            + " " + tr("Each press adds a separate extra appearance.");
         const caption = button.querySelector(".nobold");
         button.disabled = pending || scheduled;
         cell.querySelector('#holdup-interval').disabled = pending || scheduled;

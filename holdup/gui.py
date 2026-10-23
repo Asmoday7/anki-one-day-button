@@ -292,6 +292,7 @@ class PracticeRuntime:
         explanation.setWordWrap(True)
         layout.addWidget(explanation)
         info = QLabel(tr("HoldUp adds an extra appearance of this card without an FSRS rating. The original stays in Anki: choose a normal rating after scheduling practice. This setting applies to subsequent actions."))
+        info.setText(info.text() + " " + tr("Each press adds a separate extra appearance."))
         info.setWordWrap(True)
         layout.addWidget(info)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
