@@ -4,6 +4,7 @@ All writes use collection APIs and disposable collections. No SQL is used.
 """
 
 import json
+import time
 
 import pytest
 
@@ -29,6 +30,7 @@ def collection(tmp_path):
     col = Collection(str(tmp_path / "collection.anki2"))
     try:
         col.set_config("fsrs", True)
+        col.set_config("rollover", (time.localtime().tm_hour + 12) % 24)
         # Graduate immediately so the probe exercises a review card with FSRS.
         config = col.decks.config_dict_for_deck_id(DeckId(1))
         config["new"]["delays"] = []

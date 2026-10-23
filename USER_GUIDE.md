@@ -9,7 +9,7 @@ for eight days from now while you would like to see it again tomorrow.
 ## Install
 
 If another copy of this add-on is installed, disable it in **Tools → Add-ons**
-and restart Anki. Install [the archive](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-0.4.2-dev.ankiaddon)
+and restart Anki. Install [the archive](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-0.4.3-dev.ankiaddon)
 through **Tools → Add-ons → Install from file**, then restart Anki again.
 
 Cards and practice appointments remain in the collection. Choose your preferred

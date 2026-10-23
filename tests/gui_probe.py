@@ -235,6 +235,7 @@ def main(base: Path, archive: Path, steps: str, language: str) -> None:
         queue.release(saved)
         print("PASS native install, saved settings, appointments and pause recovery", flush=True)
         col.set_config("fsrs", True)
+        col.set_config("rollover", (time.localtime().tm_hour + 12) % 24)
         config = col.decks.config_dict_for_deck_id(1)
         config["new"]["delays"] = [1, 10] if steps == "minutes" else []
         config["autoplay"] = False
@@ -794,6 +795,101 @@ def main(base: Path, archive: Path, steps: str, language: str) -> None:
         assert mw.reviewer._v3 is not None
         assert expect_counts(1, ready=0) == [1, 0, 0]
         print("PASS native answer Undo from finished overview preserves appointment", flush=True)
+
+        wait_page()
+        mw.moveToState("deckBrowser")
+        wait_page()
+        mixed_deck = col.decks.id("Random reviews")
+        mixed_ids = []
+        for index in range(35):
+            note = col.new_note(model)
+            note.fields[0], note.fields[1] = f"Mixed question {index}", f"Mixed answer {index}"
+            col.add_note(note, mixed_deck)
+            mixed_ids.append(note.card_ids()[0])
+        col.sched.set_due_date(mixed_ids[:30], "0")
+        config = col.decks.config_dict_for_deck_id(mixed_deck)
+        config.update(reviewOrder=8, newMix=1)
+        config["new"]["perDay"] = 5
+        col.decks.update_config(config)
+        col.decks.select(mixed_deck)
+        mw.addonManager.writeConfig("holdup", {"interval_seconds": 3600, "interval_mode": "seconds"})
+        mw.moveToState("review")
+        for rating in (4, 3, 2, 1):
+            show_answer()
+            cid = mw.reviewer.card.id
+            assert col.get_card(cid).queue == 2
+            old = snapshot(col.get_card(cid))
+            old_logs = col.get_review_logs(cid)
+            original_data = col.get_card(cid).custom_data
+            # Actual reading time crosses the second used to shuffle reviews.
+            # Fast tests with one review card missed 'not at top of queue'.
+            QTest.qWait(1100)
+            js("document.getElementById('holdup-button').click(); true")
+            wait_for(lambda: not runtime.busy and queue.get(cid) is not None, "HoldUp on a random review")
+            saved = queue.get(cid)
+            assert saved.interval_seconds == 3600
+            assert snapshot(col.get_card(cid)) == old
+            assert col.get_card(cid).custom_data == original_data
+            previous = len(answered)
+            js(f"document.querySelector('#middle button[data-ease=\"{rating}\"]').click(); true")
+            wait_for(lambda: len(answered) == previous + 1 and mw.reviewer.state == "question",
+                     "native rating on marked random review")
+            assert len(col.get_review_logs(cid)) == len(old_logs) + 1
+            assert col.get_review_logs(cid)[0].button_chosen == rating
+            undo()
+            wait_for(lambda: mw.reviewer.state == "question" and mw.reviewer.card.id == cid
+                     and not runtime.flow.active, "random review Undo restores original")
+            assert snapshot(col.get_card(cid)) == old and queue.get(cid) == saved
+            assert col.get_review_logs(cid) == old_logs
+            show_answer()
+            previous = len(answered)
+            js(f"document.querySelector('#middle button[data-ease=\"{rating}\"]').click(); true")
+            wait_for(lambda: len(answered) == previous + 1 and mw.reviewer.state == "question",
+                     "restored random review accepts a native rating")
+            assert len(col.get_review_logs(cid)) == len(old_logs) + 1 and queue.get(cid) == saved
+        print("PASS reading delay, random reviews, four native ratings and Undo", flush=True)
+
+        # An external operation can still invalidate the displayed head. Drive
+        # a real backend rejection and verify Anki's transition state recovers.
+        show_answer()
+        rejected_id = mw.reviewer.card.id
+        rejected_logs = col.get_review_logs(rejected_id)
+        js("document.getElementById('holdup-button').click(); true")
+        wait_for(lambda: not runtime.busy and queue.get(rejected_id) is not None, "mark before external queue change")
+        remaining = col.find_cards(f"did:{mixed_deck} is:review is:due")
+        cfg = col.decks.config_dict_for_deck_id(mixed_deck)
+        cfg["reviewOrder"] = 9 if rejected_id != min(remaining) else 10
+        col.decks.update_config(cfg)
+        real_head = col.sched.get_queued_cards().cards[0].card.id
+        head_logs = col.get_review_logs(real_head)
+        assert real_head != rejected_id
+        # A stale presentation restored by Undo must also yield to the real
+        # backend head after an external queue invalidation rejects its answer.
+        from copy import deepcopy
+        runtime.flow._undo_card_id = rejected_id
+        runtime.flow._undo_info = (rejected_id, deepcopy(mw.reviewer._v3))
+        import aqt.operations
+        standard_errors = []
+        original_show_exception = aqt.operations.show_exception
+        aqt.operations.show_exception = lambda *, exception, **kwargs: standard_errors.append(exception)
+        previous = len(answered)
+        try:
+            js("document.querySelector('#middle button[data-ease=\"4\"]').click(); true")
+            wait_for(lambda: standard_errors and mw.reviewer.state == "question"
+                     and mw.reviewer.card.id == real_head, "native error recovery without leaving the deck")
+            assert "not at top of queue" in str(standard_errors[0])
+            assert runtime.flow._undo_info is None
+            assert len(answered) == previous and col.get_review_logs(rejected_id) == rejected_logs
+            assert queue.get(rejected_id) is not None
+            show_answer()
+            assert js("Array.from(document.querySelectorAll('#middle button[data-ease]')).every(b=>!b.disabled)")
+            js("document.querySelector('#middle button[data-ease=\"4\"]').click(); true")
+            wait_for(lambda: len(answered) == previous + 1 and mw.reviewer.state == "question",
+                     "native rating works after recovered error")
+            assert len(col.get_review_logs(real_head)) == len(head_logs) + 1
+        finally:
+            aqt.operations.show_exception = original_show_exception
+        print("PASS real rejected answer recovers native buttons without retrying", flush=True)
     except BaseException:
         import traceback
         traceback.print_exc(file=sys.stdout)

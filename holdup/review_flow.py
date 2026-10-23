@@ -42,6 +42,7 @@ class ReviewFlow:
         self._last_step = None
         self._defer_native_advance = False
         self._native_advance = None
+        self._practice_refresh = False
         self.reviewer._holdup_practice = False
         self._original = {}
         for name, replacement in (
@@ -60,6 +61,7 @@ class ReviewFlow:
         gui_hooks.reviewer_did_answer_card.append(self.native_answered)
         gui_hooks.state_did_undo.append(self.on_undo)
         gui_hooks.operation_did_execute.append(self.on_operation)
+        gui_hooks.backend_did_block.append(self.on_backend_idle)
         gui_hooks.reviewer_will_end.append(self.clear)
         gui_hooks.profile_will_close.append(self.close)
         gui_hooks.card_will_show.append(self.decorate)
@@ -75,6 +77,7 @@ class ReviewFlow:
         self._undo_info = None
         self._defer_native_advance = False
         self._native_advance = None
+        self._practice_refresh = False
         self.reviewer._holdup_practice = False
 
     def close(self, *_args):
@@ -117,10 +120,13 @@ class ReviewFlow:
         self._native_advance = advance
 
     def on_undo(self, changes):
+        self._practice_refresh = changes.operation in self.practice_undo_names()
         self._undo_card_id = None
         self._undo_info = None
         if self.mw.col is not self._answer_collection:
-            return
+            self._native_answers.clear()
+            self._redo_stack.clear()
+            self._answer_collection = self.mw.col
         info = self._native_answers.get(changes.counter)
         self._redo_stack.append((changes.operation, info))
         self._last_step = changes.new_status.last_step
@@ -134,6 +140,9 @@ class ReviewFlow:
             self.runtime.open_undone_card()
 
     def on_operation(self, *_args):
+        if self._practice_refresh:
+            self._practice_refresh = False
+            self.refresh_practice()
         if self._native_advance is not None:
             advance, self._native_advance = self._native_advance, None
             QTimer.singleShot(0, advance)
@@ -152,10 +161,45 @@ class ReviewFlow:
             _operation, info = self._redo_stack.pop()
             if info is not None:
                 self._native_answers[status.last_step] = info
+            elif status.undo in self.practice_undo_names() and (len(_args) < 2 or _args[1] is None):
+                self.refresh_practice()
             if self._redo_stack and status.redo != self._redo_stack[-1][0]:
                 self._redo_stack.clear()
         else:
             self._redo_stack.clear()
+
+    @staticmethod
+    def practice_undo_names():
+        return {tr("HoldUp: repeat practice"), tr("HoldUp: finish practice"), tr("HoldUp: clear all practice")}
+
+    def refresh_practice(self):
+        collection = self.mw.col
+
+        def refresh():
+            if self.mw.col is collection and self.mw.state == "review":
+                self.active = self.token = None
+                self.reviewer.nextCard()
+
+        QTimer.singleShot(0, refresh)
+
+    def on_backend_idle(self):
+        # Anki leaves the reviewer in transition when a native answer fails.
+        # Allow its success callback and our normal navigation to finish first;
+        # an unsuccessful answer then recovers through the real native queue.
+        if self.mw.state != "review" or self.reviewer.state != "transition":
+            return
+        collection, card = self.mw.col, self.reviewer.card
+
+        def recover():
+            if (self.mw.col is collection and self.mw.state == "review"
+                    and self.reviewer.card is card and self.reviewer.state == "transition"
+                    and not self.mw._background_op_count and not self.runtime.busy):
+                self._defer_native_advance = False
+                self._native_advance = None
+                self._undo_info = self._undo_card_id = None
+                self._original["nextCard"]()
+
+        QTimer.singleShot(0, lambda: QTimer.singleShot(0, recover))
 
     def requests(self):
         col = self.mw.col

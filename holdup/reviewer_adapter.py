@@ -137,9 +137,9 @@ class ReviewerController:
         ):
             return (True, None)
 
-        if getattr(self._mw, "_background_op_count", 0):
-            self._waiting_card_id = self._card_id
-            return (True, None)
+        # CollectionOp serializes the write after outstanding collection reads.
+        # Dropping this valid click during the one-second poll required a
+        # second click even though the button had already acknowledged it.
         reviewer = self._reviewer
         card_id = self._card_id
         # Consume before dispatch: nested or queued second clicks are stale.
@@ -161,7 +161,7 @@ class ReviewerController:
             if (
                 configure and self._token is None and self._mw.col is self._collection
                 and self._mw.reviewer is reviewer
-                and self._eligible()
+                and self._eligible(allow_background=True)
                 and reviewer.card.id == self._card_id
             ):
                 self.on_answer(reviewer.card)

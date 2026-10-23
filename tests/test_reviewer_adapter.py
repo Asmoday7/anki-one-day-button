@@ -80,7 +80,7 @@ def test_undo_rearms_same_answer_with_fresh_token_after_background_work(setup_co
     mw.reviewer._answerCard.assert_not_called()
 
 
-@pytest.mark.parametrize("change", ["question", "window", "collection", "card", "filtered", "suspended", "practice", "busy"])
+@pytest.mark.parametrize("change", ["question", "window", "collection", "card", "filtered", "suspended", "practice", "native_answer_in_flight"])
 def test_stale_or_ineligible_context_never_answers(setup_controller, change):
     controller, mw, _report = setup_controller
     message = current_command(mw)
@@ -99,8 +99,9 @@ def test_stale_or_ineligible_context_never_answers(setup_controller, change):
         mw.reviewer.card.queue = -1
     elif change == "practice":
         mw.reviewer._holdup_practice = True
-    elif change == "busy":
+    elif change == "native_answer_in_flight":
         mw._background_op_count = 1
+        mw.reviewer.state = "transition"
     controller.on_message((False, None), message, context)
     controller._defer.assert_not_called()
     mw.reviewer._answerCard.assert_not_called()
@@ -171,14 +172,14 @@ def test_button_appears_after_read_that_overlapped_show_answer(setup_controller)
     mw.reviewer._answerCard.assert_not_called()
 
 
-def test_click_during_read_rearms_without_scheduling_or_reusing_token(setup_controller):
+def test_click_during_read_dispatches_once_to_the_serialized_operation(setup_controller):
     controller, mw, _report = setup_controller
     old = current_command(mw)
     mw._background_op_count = 1
     controller.on_message((False, None), old, BottomContext(mw.reviewer))
-    controller._defer.assert_not_called()
+    controller._defer.assert_called_once_with(123)
     mw._background_op_count = 0
     controller.on_idle()
-    assert current_command(mw) != old
     controller.on_message((False, None), old, BottomContext(mw.reviewer))
-    controller._defer.assert_not_called()
+    controller._defer.assert_called_once_with(123)
+    mw.reviewer._answerCard.assert_not_called()

@@ -1,6 +1,6 @@
 # HoldUp: установочный архив
 
-Текущая тестовая версия — **[holdup-0.4.2-dev.ankiaddon](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-0.4.2-dev.ankiaddon)**.
+Текущая тестовая версия — **[holdup-0.4.3-dev.ankiaddon](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-0.4.3-dev.ankiaddon)**.
 
 **HoldUp - Отправь карточку и в FSRS, и отдельную очередь!**
 
@@ -35,4 +35,4 @@ python tools/package_addon.py
 ```
 
 Результат — `.dev/dist/holdup.ankiaddon`. Для публикации скопируйте проверенную
-сборку в `dist/holdup-0.4.2-dev.ankiaddon` и обновите SHA256SUMS.
+сборку в `dist/holdup-0.4.3-dev.ankiaddon` и обновите SHA256SUMS.

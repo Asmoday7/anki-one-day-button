@@ -22,6 +22,7 @@ pytestmark = pytest.mark.anki_contract
 def col(tmp_path):
     collection = Collection(str(tmp_path / "merge.anki2"))
     collection.set_config("fsrs", True)
+    collection.set_config("rollover", (time.localtime().tm_hour + 12) % 24)
     config = collection.decks.config_dict_for_deck_id(1)
     config["new"]["delays"] = [1, 10]
     collection.decks.update_config(config)
@@ -54,6 +55,7 @@ def flow_for(col, monkeypatch, clock):
     flow._last_step = None
     flow._defer_native_advance = False
     flow._native_advance = None
+    flow._practice_refresh = False
 
     def native_head():
         reviewer.card = reviewer._v3 = None
@@ -158,7 +160,7 @@ def test_native_answer_undo_takes_priority_over_ready_practice(col, monkeypatch,
         other_id = next(cid for cid in col.find_cards("") if cid != original.id)
         queue.enqueue(other_id, 1, clock - 1)
     requests = queue.all()
-    col.sched.get_queued_cards()  # Production defer rebuilds after metadata.
+    col.sched.get_queued_cards()  # Read the unchanged native head before the answer.
     original.start_timer()
     col.sched.answer_card(col.sched.build_answer(
         card=original, states=flow.reviewer._v3.states, rating=CardAnswer.EASY,
@@ -203,7 +205,7 @@ def test_practice_undo_still_restores_practice_after_a_native_answer(col, monkey
     queue = PracticeQueue(col)
     queue.enqueue(card.id, 1, clock)
     request = queue.get(card.id)
-    col.sched.get_queued_cards()  # Production defer rebuilds after metadata.
+    col.sched.get_queued_cards()  # Read the unchanged native head before the answer.
     card.start_timer()
     col.sched.answer_card(col.sched.build_answer(
         card=card, states=flow.reviewer._v3.states, rating=CardAnswer.EASY,
@@ -366,3 +368,26 @@ def test_deleting_restored_original_clears_undo_pin_and_continues(col, monkeypat
     assert flow.reviewer.card.id == col.sched.get_queued_cards().cards[0].card.id
     assert not queue.all()
     assert col.undo_status().last_step == delete_step  # The redraw is read-only.
+
+
+def test_practice_undo_redo_refreshes_without_any_native_answer_in_session(col, monkeypatch):
+    flow = flow_for(col, monkeypatch, clock=100000)
+    cid = col.find_cards("")[0]
+    queue = PracticeQueue(col)
+    queue.enqueue(cid, 1, 1000)
+    request = queue.get(cid)
+    flow.select()
+    assert flow.active == request and flow._answer_collection is None
+    queue.release(request)
+    flow.active = None
+    flow.select()
+    refreshed = []
+    monkeypatch.setattr(flow, "refresh_practice", lambda: refreshed.append(True))
+    undone = col.undo()
+    flow.on_undo(undone)
+    flow.on_operation(undone.changes, None)
+    assert refreshed == [True] and queue.get(cid) == request
+    redone = col.redo()
+    flow.on_operation(redone.changes, None)
+    assert refreshed == [True, True] and queue.get(cid) is None
+    assert not flow._native_answers and not col.get_review_logs(cid)

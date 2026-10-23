@@ -24,6 +24,7 @@ pytestmark = pytest.mark.anki_contract
 def col(tmp_path):
     collection = Collection(str(tmp_path / "timed.anki2"))
     collection.set_config("fsrs", True)
+    collection.set_config("rollover", (time.localtime().tm_hour + 12) % 24)
     note = collection.new_note(collection.models.by_name("Basic"))
     note["Front"], note["Back"] = "Timed question", "Timed answer"
     collection.add_note(note, 1)
@@ -135,7 +136,7 @@ def test_study_day_uses_anki_boundary_preserves_native_answer_and_undo(col, roll
     assert request.interval_seconds == 86400 and request.original_queue is None
     assert scheduling_snapshot(col.get_card(card.id)) == before
     assert not col.get_review_logs(card.id)
-    assert json.loads(col.get_card(card.id).custom_data)["odbnext"] == 1
+    assert col.get_card(card.id).custom_data == ""
     col.undo()
     assert queue.get(card.id) is None
     col.redo()
@@ -161,8 +162,7 @@ def test_calendar_delay_can_be_shorter_than_second_or_longer_than_24_hours(col, 
     queue.enqueue(cid, 86400, clock)
     assert queue.get(cid).due_ms == clock + 86400000
     assert not queue.get(cid).next_study_day
-    assert json.loads(col.get_card(cid).custom_data)["odbv"] == 2
-    assert "odbnext" not in json.loads(col.get_card(cid).custom_data)
+    assert col.get_card(cid).custom_data == ""
 
 
 def test_calendar_repeat_and_release_preserve_other_data_and_history(col):
@@ -229,7 +229,7 @@ def test_calendar_budget_failure_and_stale_cutoff_write_nothing(col, monkeypatch
     step = col.undo_status().last_step
     clock = time.time_ns() // 1_000_000
     with pytest.raises(CustomDataLimitExceeded):
-        queue.enqueue(card.id, 2, clock, next_study_day=True)
+        queue.enqueue(card.id, 2, clock, next_study_day=True, pause=True)
     monkeypatch.setattr(type(col.sched), "day_cutoff", property(lambda _self: clock // 1000))
     with pytest.raises(PracticeStateChanged):
         queue.enqueue(card.id, 2, clock, next_study_day=True)
@@ -243,7 +243,7 @@ def test_budget_failure_does_not_pause_card_or_add_undo(col):
     col.update_card(card)
     raw, before, undo = card.custom_data, scheduling_snapshot(card), col.undo_status().last_step
     with pytest.raises(CustomDataLimitExceeded):
-        PracticeQueue(col).enqueue(card.id, 86400, 1792300000000)
+        PracticeQueue(col).enqueue(card.id, 86400, 1792300000000, pause=True)
     assert scheduling_snapshot(col.get_card(card.id)) == before
     assert col.get_card(card.id).custom_data == raw
     assert col.undo_status().last_step == undo
@@ -401,7 +401,7 @@ def test_runtime_two_hour_mark_then_native_easy_undo_returns_original(col, kind)
     mark_step = col.undo_status().last_step
 
     # Do not fetch native queues or counts here: that would repair the bug
-    # accidentally instead of proving runtime.defer already repaired it.
+    # accidentally instead of proving runtime.defer leaves the native queue intact.
     answer = col.sched.build_answer(card=card, states=reviewer._v3.states, rating=CardAnswer.EASY)
     col.sched.answer_card(answer)
     answered = scheduling_snapshot(col.get_card(cid))

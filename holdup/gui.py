@@ -209,16 +209,8 @@ class PracticeRuntime:
         reviewer = self.mw.reviewer
         reviewer._clear_auto_advance_timers()
 
-        def enqueue(queue):
-            changes = queue.enqueue(card_id, config["interval_seconds"], now_ms(),
-                                    next_study_day=config["interval_mode"] == MODE_STUDY_DAY)
-            # update_card() invalidates Anki's cached queues. The displayed
-            # original stays on screen, so rebuild before its native answer:
-            # otherwise that answer has no queue snapshot for Undo to restore.
-            queue.col.sched.get_queued_cards()
-            return changes
-
-        self.perform(enqueue,
+        self.perform(lambda queue: queue.enqueue(card_id, config["interval_seconds"], now_ms(),
+                                               next_study_day=config["interval_mode"] == MODE_STUDY_DAY),
                      lambda: self.controller.on_deferred(card_id), initiator=reviewer)
 
     def repeat(self, request: TimedRequest, success: Callable | None = None) -> None:
