@@ -5,7 +5,7 @@
 Not sure you will remember a card? **HoldUp** schedules another look at a time
 you choose, alongside your normal Anki reviews.
 
-**[Download 0.4.3-dev](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-0.4.3-dev.ankiaddon)**
+**[Download 0.4.4-dev](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-0.4.4-dev.ankiaddon)**
 
 [User guide](USER_GUIDE.md) · [Руководство пользователя](USER_GUIDE.ru.md)
 
@@ -79,9 +79,10 @@ practice repeat or **Done** affects only the practice appointment.
 collection, including future ones. Cards and normal ratings remain.
 
 
-Version 0.4.3 fixes native ratings after marking a review card: practice storage no
-longer rebuilds Anki's live queue. Existing appointments remain readable. A native
-answer rejected by an external queue change also recovers the reviewer controls.
+Version 0.4.4 returns ready practice after Undo from the finished-for-today overview
+and keeps the first appearance after switching decks within the selected deck.
+Marking the same card again replaces its one extra appointment; Undo restores
+the old deadline and Redo restores the exact new deadline.
 
 ## Development
 
@@ -116,6 +117,6 @@ validation. AnkiDroid does not run desktop Python add-ons. Extra practice does n
 submit FSRS ratings, although it can affect what a person remembers on their next
 normal review.
 
-Verified on Linux: **182 passed** on each of Anki **26.09 (e62e7739)** and
+Verified on Linux: **199 passed** on each of Anki **26.09 (e62e7739)** and
 **26.09.3 (29bb700b)**, including English/Russian GUI scenarios with and without
 minute learning steps. Windows and cross-device sync still need manual checks.

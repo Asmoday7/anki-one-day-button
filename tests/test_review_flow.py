@@ -391,3 +391,38 @@ def test_practice_undo_redo_refreshes_without_any_native_answer_in_session(col, 
     flow.on_operation(redone.changes, None)
     assert refreshed == [True, True] and queue.get(cid) is None
     assert not flow._native_answers and not col.get_review_logs(cid)
+
+
+@pytest.mark.parametrize("state", ["review", "overview", "deckBrowser"])
+def test_practice_history_refresh_returns_from_finished_overview_only(col, monkeypatch, state):
+    flow = flow_for(col, monkeypatch, clock=100000)
+    flow.mw.state = state
+    calls = []
+    flow.reviewer.nextCard = lambda: calls.append("next")
+    flow.runtime.open_practice = lambda: calls.append("open")
+    monkeypatch.setattr("holdup.review_flow.QTimer.singleShot", lambda _delay, callback: callback())
+    flow.refresh_practice()
+    assert calls == {"review": ["next"], "overview": ["open"], "deckBrowser": []}[state]
+
+
+@pytest.mark.parametrize("ready", [True, False])
+def test_switching_decks_excludes_previous_practice_before_native_queue_rebuild(col, monkeypatch, ready):
+    flow = flow_for(col, monkeypatch, clock=100000)
+    queue = PracticeQueue(col)
+    cid = col.find_cards("")[0]
+    queue.enqueue(cid, 1 if ready else 7200, 1000)
+    flow.select()
+    flow.clear()
+    other_deck = col.decks.id("Newly selected deck")
+    note = col.new_note(col.models.by_name("Basic"))
+    note["Front"] = "Another deck's original"
+    col.add_note(note, other_deck)
+    col.decks.select(other_deck)
+    # Anki's cached active_decks still belongs to the preceding queue until
+    # the next native fetch. Practice scope must already follow the selection.
+    assert 1 in col.decks.active()
+    assert flow.requests() == []
+    flow.select()
+    assert flow.active is None and flow.reviewer.card.id == note.card_ids()[0]
+    assert flow.reviewer._v3 is not None and not flow.reviewer._holdup_practice
+    assert queue.get(cid) is not None

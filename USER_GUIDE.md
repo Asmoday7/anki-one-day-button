@@ -9,7 +9,7 @@ for eight days from now while you would like to see it again tomorrow.
 ## Install
 
 If another copy of this add-on is installed, disable it in **Tools → Add-ons**
-and restart Anki. Install [the archive](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-0.4.3-dev.ankiaddon)
+and restart Anki. Install [the archive](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-0.4.4-dev.ankiaddon)
 through **Tools → Add-ons → Install from file**, then restart Anki again.
 
 Cards and practice appointments remain in the collection. Choose your preferred
@@ -27,6 +27,14 @@ another installation. Keep only one copy enabled.
 The extra appearance keeps its own deadline independently of that rating.
 No note or card is duplicated. Each card can have one extra appointment;
 scheduling it again replaces its previous extra deadline.
+
+If the same card returns through normal study before its extra appearance,
+pressing **HoldUp** again with a fixed interval restarts it from that click. For example,
+an appointment for 15:00 moves to 15:20 if you press HoldUp with a one-hour
+interval again at 14:20. There is still one extra appearance, so the waiting
+count does not increase. **Undo** restores the previous deadline; **Redo**
+restores the exact new deadline.
+In next-study-day mode, the deadline is recalculated from Anki's next day-start boundary.
 
 ## Choose when to practise
 
@@ -79,6 +87,10 @@ it does not replace the original card returned by Undo.
 A second Undo cancels the earlier HoldUp appointment if no other collection action
 intervened. Undoing **Again in …**, **Next study day** or **Done** changes only the
 practice appointment; the original's normal rating stays in place.
+
+If a repeat or **Done** took you to the finished-for-today overview, Undo returns
+ready practice to the same reviewer. Undo from **Decks** updates its ready badge
+without starting study automatically.
 
 **Tools → HoldUp: clear all practice** removes extra appointments across the open
 collection. It does not delete cards or undo normal ratings.

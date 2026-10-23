@@ -176,9 +176,17 @@ class ReviewFlow:
         collection = self.mw.col
 
         def refresh():
-            if self.mw.col is collection and self.mw.state == "review":
+            if self.mw.col is not collection:
+                return
+            if self.mw.state == "review":
                 self.active = self.token = None
                 self.reviewer.nextCard()
+            elif self.mw.state == "overview":
+                # Undo of the last Repeat/Done restores a ready appearance,
+                # even though its successful action already left review.
+                # Reuse the guarded overview navigation (including the async
+                # congrats fetch); ordinary polling never enters review.
+                self.runtime.open_practice()
 
         QTimer.singleShot(0, refresh)
 
@@ -201,11 +209,17 @@ class ReviewFlow:
 
         QTimer.singleShot(0, lambda: QTimer.singleShot(0, recover))
 
+    def selected_decks(self):
+        # decks.active() describes Anki's last built study queue. Immediately
+        # after selecting a different deck it can still name the old one.
+        col = self.mw.col
+        return set(col.decks.deck_and_child_ids(col.decks.get_current_id()))
+
     def requests(self):
         col = self.mw.col
         if col is None or col.decks.current()["dyn"]:
             return []
-        decks = set(col.decks.active())
+        decks = self.selected_decks()
         queue = PracticeQueue(col)
         return [r for r in queue.all()
                 if queue.available(r) and col.get_card(r.card_id).did in decks]
@@ -223,7 +237,7 @@ class ReviewFlow:
         if col is None or self.mw.state != "review" or not r.card or r.state not in ("question", "answer"):
             return
         if rows is not None:
-            decks = set(col.decks.active())
+            decks = self.selected_decks()
             self._requests = [row.request for row in rows if row.available and row.deck_id in decks]
         if col.decks.current()["dyn"] or not col.conf["dueCounts"]:
             payload = None
@@ -274,7 +288,7 @@ class ReviewFlow:
                 restored = (
                     (card.reps, card.queue, card.type, card.due, card.did)
                     == (expected.reps, expected.queue, expected.ctype, expected.due, expected.deck_id)
-                    and card.odid == 0 and card.did in self.mw.col.decks.active()
+                    and card.odid == 0 and card.did in self.selected_decks()
                 )
                 if not restored:
                     # Redo/external operations can refresh before our operation

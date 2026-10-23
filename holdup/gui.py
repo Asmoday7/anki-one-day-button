@@ -135,7 +135,7 @@ class PracticeRuntime:
             self.resume_action.setEnabled(any(row.request.original_queue is not None for row in rows))
             self.indicator.update(rows)
             self.flow.update_counts(rows)
-            decks = set(collection.decks.active())
+            decks = self.flow.selected_decks()
             pending = sum(row.available and row.deck_id in decks for row in rows)
             count = sum(row.available and row.request.due_ms <= now_ms()
                         and row.deck_id in decks for row in rows)

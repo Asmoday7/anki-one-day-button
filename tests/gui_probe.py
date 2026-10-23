@@ -890,6 +890,222 @@ def main(base: Path, archive: Path, steps: str, language: str) -> None:
         finally:
             aqt.operations.show_exception = original_show_exception
         print("PASS real rejected answer recovers native buttons without retrying", flush=True)
+
+        # Follow a complete mixed history in the real UI: two separate marked
+        # originals, last-card overview, Undo all four steps, Redo all four,
+        # then a divergent answer. Backend-only snapshots miss stale displays.
+        wait_page()
+        mw.moveToState("deckBrowser")
+        wait_page()
+        history_deck = col.decks.id("Mixed Undo history")
+        history_ids = []
+        for index in range(3):
+            note = col.new_note(model)
+            note.fields[0], note.fields[1] = f"History {index}", f"Answer {index}"
+            col.add_note(note, history_deck)
+            history_ids.append(note.card_ids()[0])
+        config = col.decks.config_dict_for_deck_id(history_deck)
+        config["new"]["perDay"] = 2
+        config["new"]["delays"] = [1, 10] if steps == "minutes" else []
+        col.decks.update_config(config)
+        col.decks.select(history_deck)
+        mw.addonManager.writeConfig("holdup", {"interval_seconds": 7200, "interval_mode": "seconds"})
+        mw.moveToState("review")
+        saved_originals, saved_requests = {}, {}
+
+        def expect_original(cid):
+            wait_for(lambda: mw.state == "review" and mw.reviewer.state == "question"
+                     and mw.reviewer.card.id == cid and not runtime.flow.active,
+                     "restored native original in mixed history")
+            assert mw.reviewer._v3 is not None and not mw.reviewer._holdup_practice
+
+        def redo_until(predicate, description):
+            wait_page()
+            focus_main()
+            assert mw.form.actionRedo.isEnabled()
+            mw.form.actionRedo.trigger()
+            wait_for(lambda: not mw._background_op_count and predicate(), description)
+
+        for cid in history_ids[:2]:
+            expect_original(cid)
+            saved_originals[cid] = snapshot(col.get_card(cid))
+            show_answer()
+            js("document.getElementById('holdup-button').click(); true")
+            wait_for(lambda: not runtime.busy and queue.get(cid) is not None, "mixed-history HoldUp")
+            saved_requests[cid] = queue.get(cid)
+            previous = len(answered)
+            js("document.querySelector('#middle button[data-ease=\"4\"]').click(); true")
+            wait_for(lambda: len(answered) == previous + 1
+                     and (mw.state == "overview" or mw.reviewer.state == "question"),
+                     "mixed-history native Easy")
+        a_id, b_id, unused_id = history_ids
+        wait_for(lambda: mw.state == "overview", "daily new limit after two explicit answers")
+        undo()
+        expect_original(b_id)
+        assert snapshot(col.get_card(b_id)) == saved_originals[b_id]
+        assert len(col.get_review_logs(a_id)) == 1 and not col.get_review_logs(b_id)
+        assert all(queue.get(cid) == saved_requests[cid] for cid in (a_id, b_id))
+        undo()
+        assert queue.get(b_id) is None and queue.get(a_id) == saved_requests[a_id]
+        expect_original(b_id)
+        undo()
+        expect_original(a_id)
+        assert snapshot(col.get_card(a_id)) == saved_originals[a_id]
+        assert not col.get_review_logs(a_id) and not col.get_review_logs(b_id)
+        undo()
+        assert queue.get(a_id) is None and queue.get(b_id) is None
+        expect_original(a_id)
+        redo_until(lambda: queue.get(a_id) == saved_requests[a_id], "Redo first appointment")
+        redo_until(lambda: len(col.get_review_logs(a_id)) == 1, "Redo first native answer")
+        expect_original(b_id)
+        redo_until(lambda: queue.get(b_id) == saved_requests[b_id], "Redo second appointment")
+        redo_until(lambda: len(col.get_review_logs(b_id)) == 1 and mw.state == "overview",
+                   "Redo last native answer and overview")
+
+        undo()
+        expect_original(b_id)
+        show_answer()
+        mw.addonManager.writeConfig("holdup", {"interval_seconds": 2, "interval_mode": "seconds"})
+        _controller.on_answer(mw.reviewer.card)
+        wait_for(button_ready, "replace appointment after Undo")
+        js("document.getElementById('holdup-button').click(); true")
+        wait_for(lambda: not runtime.busy and queue.get(b_id).interval_seconds == 2,
+                 "short appointment creates a new history branch")
+        short_request = queue.get(b_id)
+        previous = len(answered)
+        js("document.querySelector('#middle button[data-ease=\"3\"]').click(); true")
+        wait_for(lambda: len(answered) == previous + 1
+                 and (mw.state == "overview" or mw.reviewer.state == "question"),
+                 "different native rating after Undo")
+        assert not mw.form.actionRedo.isEnabled()
+        assert col.get_card(unused_id).queue == 0 and not col.get_review_logs(unused_id)
+        assert len(col.get_review_logs(a_id)) == len(col.get_review_logs(b_id)) == 1
+        native_branch = snapshot(col.get_card(b_id))
+        wait_for(lambda: time.time_ns() // 1_000_000 > short_request.due_ms + 100,
+                 "short branch appointment becomes ready")
+        wait_page()
+        if mw.state == "review":
+            mw.moveToState("overview")
+            wait_page()
+        runtime.open_practice()
+        wait_for(lambda: runtime.flow.active == short_request and mw.reviewer.state == "question",
+                 "branch practice in the same reviewer")
+        show_practice_answer()
+        mw.addonManager.writeConfig("holdup", {"interval_seconds": 7200, "interval_mode": "seconds"})
+        js("document.getElementById('holdup-practice-repeat').click(); true")
+        wait_for(lambda: not runtime.busy and queue.get(b_id) != short_request, "repeat on new branch")
+        repeated_request = queue.get(b_id)
+        undo()
+        wait_for(lambda: runtime.flow.active == short_request and mw.reviewer.state == "question",
+                 "Undo branch repeat restores practice")
+        redo_until(lambda: queue.get(b_id) == repeated_request and not runtime.flow.active,
+                   "Redo branch repeat leaves the old practice screen")
+        undo()
+        wait_for(lambda: runtime.flow.active == short_request and mw.reviewer.state == "question",
+                 "Undo repeated Redo restores practice again")
+        show_practice_answer()
+        js("document.getElementById('holdup-practice-release').click(); true")
+        wait_for(lambda: not runtime.busy and queue.get(b_id) is None, "Done on restored practice")
+        undo()
+        wait_for(lambda: runtime.flow.active == short_request and mw.reviewer.state == "question",
+                 "Undo Done on branch")
+        redo_until(lambda: queue.get(b_id) is None and not runtime.flow.active, "Redo Done on branch")
+        assert snapshot(col.get_card(b_id)) == native_branch
+        assert len(col.get_review_logs(b_id)) == 1
+        undo()
+        wait_for(lambda: runtime.flow.active == short_request, "restore Done before undoing native grade")
+        undo()
+        expect_original(b_id)
+        assert snapshot(col.get_card(b_id)) == saved_originals[b_id]
+        assert queue.get(b_id) == short_request and not col.get_review_logs(b_id)
+        show_answer()
+        assert js("document.querySelectorAll('#middle button[data-ease]').length") == 4
+        assert expect_counts(2, ready=1)[0] == 1  # Only the restored original is new today.
+        assert col.get_card(unused_id).queue == 0 and not col.get_review_logs(unused_id)
+        # Rapid repeated menu commands are serialized by Anki too. Restore the
+        # exact old deadlines rather than scheduling from the Redo clock.
+        wait_page()
+        focus_main()
+        previous = len(undone)
+        mw.form.actionUndo.trigger()
+        mw.form.actionUndo.trigger()
+        wait_for(lambda: len(undone) == previous + 2 and not mw._background_op_count,
+                 "two queued Undo commands")
+        assert queue.get(b_id) is None and queue.get(a_id) == saved_requests[a_id]
+        mw.form.actionRedo.trigger()
+        mw.form.actionRedo.trigger()
+        wait_for(lambda: not mw._background_op_count and queue.get(b_id) == short_request,
+                 "two queued Redo commands restore the exact short deadline")
+        assert snapshot(col.get_card(b_id)) == saved_originals[b_id]
+        assert not col.get_review_logs(b_id)
+        print("PASS four-step Undo/Redo, new branch, repeat, Done and original return", flush=True)
+
+        # A native learning appearance can return before the separate HoldUp
+        # appointment. Marking it again replaces the one appointment; it must
+        # not hide another copy behind an unchanged counter.
+        wait_page()
+        mw.moveToState("deckBrowser")
+        wait_page()
+        replacement_deck = col.decks.id("Repeated native appearance")
+        note = col.new_note(model)
+        note.fields[0], note.fields[1] = "Same native card again", "One extra appointment"
+        col.add_note(note, replacement_deck)
+        replacement_id = note.card_ids()[0]
+        config = col.decks.config_dict_for_deck_id(replacement_deck)
+        config["new"]["delays"] = [1, 10]
+        config["new"]["perDay"] = 20
+        col.decks.update_config(config)
+        col.decks.select(replacement_deck)
+        mw.addonManager.writeConfig("holdup", {"interval_seconds": 7200, "interval_mode": "seconds"})
+        mw.moveToState("review")
+        show_answer()
+        original_state = snapshot(col.get_card(replacement_id))
+        js("document.getElementById('holdup-button').click(); true")
+        wait_for(lambda: not runtime.busy and queue.get(replacement_id) is not None,
+                 "first appointment before native learning")
+        first_appointment = queue.get(replacement_id)
+        previous = len(answered)
+        js("document.querySelector('#middle button[data-ease=\"3\"]').click(); true")
+        wait_for(lambda: len(answered) == previous + 1 and mw.reviewer.state == "question",
+                 "native learning returns before HoldUp")
+        expect_original(replacement_id)
+        learning_state = snapshot(col.get_card(replacement_id))
+        assert col.get_card(replacement_id).queue == 1 and queue.get(replacement_id) == first_appointment
+        assert expect_counts(1, ready=0) == [0, 1, 0]
+        show_answer()
+        js("document.getElementById('holdup-button').click(); true")
+        wait_for(lambda: not runtime.busy and queue.get(replacement_id).due_ms > first_appointment.due_ms,
+                 "second native HoldUp replaces the old deadline")
+        second_appointment = queue.get(replacement_id)
+        assert len([request for request in queue.all() if request.card_id == replacement_id]) == 1
+        assert expect_counts(1, ready=0) == [0, 1, 0]
+        assert snapshot(col.get_card(replacement_id)) == learning_state
+        assert len(col.get_review_logs(replacement_id)) == 1
+        undo()
+        assert queue.get(replacement_id) == first_appointment
+        redo_until(lambda: queue.get(replacement_id) == second_appointment, "Redo exact replacement deadline")
+        assert expect_counts(1, ready=0) == [0, 1, 0]
+        if mw.reviewer.state == "question":
+            show_answer()
+        previous = len(answered)
+        js("document.querySelector('#middle button[data-ease=\"4\"]').click(); true")
+        wait_for(lambda: len(answered) == previous + 1 and mw.state == "overview",
+                 "native Easy after replacement Redo")
+        assert len(col.get_review_logs(replacement_id)) == 2
+        undo()
+        expect_original(replacement_id)
+        assert queue.get(replacement_id) == second_appointment
+        assert snapshot(col.get_card(replacement_id)) == learning_state
+        undo()
+        assert queue.get(replacement_id) == first_appointment
+        undo()
+        expect_original(replacement_id)
+        assert snapshot(col.get_card(replacement_id)) == original_state
+        assert not col.get_review_logs(replacement_id)
+        assert queue.get(replacement_id) == first_appointment
+        undo()
+        assert queue.get(replacement_id) is None
+        print("PASS repeated native appearance replaces one appointment and Undo restores old deadline", flush=True)
     except BaseException:
         import traceback
         traceback.print_exc(file=sys.stdout)

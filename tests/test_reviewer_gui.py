@@ -35,6 +35,6 @@ def test_packaged_button_in_desktop_anki(tmp_path, steps, language):
         pytest.fail("Desktop probe timed out:\n" + log.read_text())
     output = log.read_text()
     assert result.returncode == 0, output
-    assert output.count("PASS ") == 10, output
+    assert output.count("PASS ") == 12, output
     assert "JS error" not in output, output
     print(output)
