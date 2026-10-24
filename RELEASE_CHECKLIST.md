@@ -1,6 +1,6 @@
 # HoldUp 1.0 release checklist
 
-Candidate: **1.0.0-rc.2**. This file records work and open gates; unchecked items
+Candidate: **1.0.0-rc.3**. This file records work and open gates; unchecked items
 must not be reported as completed.
 
 ## 1. Validation

@@ -886,10 +886,10 @@ def main(base: Path, archive: Path, steps: str, language: str) -> None:
         rejected_logs = col.get_review_logs(rejected_id)
         js("document.getElementById('holdup-button').click(); true")
         wait_for(lambda: not runtime.busy and queue.get(rejected_id) is not None, "mark before external queue change")
-        remaining = col.find_cards(f"did:{mixed_deck} is:review is:due")
-        cfg = col.decks.config_dict_for_deck_id(mixed_deck)
-        cfg["reviewOrder"] = 9 if rejected_id != min(remaining) else 10
-        col.decks.update_config(cfg)
+        # Changing sort order can still leave the displayed card first (for
+        # example when several reviews have equal difficulty). Bury this card
+        # externally so a different head is guaranteed, regardless of shuffle.
+        col.sched.bury_cards([rejected_id])
         real_head = col.sched.get_queued_cards().cards[0].card.id
         head_logs = col.get_review_logs(real_head)
         assert real_head != rejected_id
@@ -1233,9 +1233,18 @@ def main(base: Path, archive: Path, steps: str, language: str) -> None:
         raise
     finally:
         if mw.col is not None:
+            # Native cleanup deletes the web pages/main window and schedules
+            # app.exit() after GC. Waiting only for col=None and then quitting
+            # skipped that sequence, intermittently crashing Qt on Windows.
+            # Run Qt's event loop until Anki's own delayed exit completes.
+            watchdog = QTimer()
+            watchdog.setSingleShot(True)
+            watchdog.timeout.connect(lambda: app.exit(1))
+            watchdog.start(20000)
             mw.unloadProfileAndExit()
-            wait_for(lambda: mw.col is None, "profile cleanup")
-        app.quit()
+            assert app.exec() == 0, "Native application cleanup timed out"
+            watchdog.stop()
+            print("CLEAN SHUTDOWN", flush=True)
 
 
 if __name__ == "__main__":

@@ -29,7 +29,7 @@ def test_packaged_button_in_desktop_anki(tmp_path, steps, language):
     try:
         with log.open("w", encoding="utf-8") as output:
             result = subprocess.run(
-                [sys.executable, str(Path(__file__).with_name("gui_probe.py")), str(base), str(archive), steps, language],
+                [sys.executable, "-X", "faulthandler", str(Path(__file__).with_name("gui_probe.py")), str(base), str(archive), steps, language],
                 env=env, stdout=output, stderr=subprocess.STDOUT, text=True,
                 timeout=int(os.environ.get("HOLDUP_GUI_TIMEOUT", "120")),
             )
@@ -38,5 +38,6 @@ def test_packaged_button_in_desktop_anki(tmp_path, steps, language):
     output = log.read_text(encoding="utf-8")
     assert result.returncode == 0, output
     assert output.count("PASS ") == 13, output
+    assert "CLEAN SHUTDOWN" in output, output
     assert "JS error" not in output, output
     print(output)

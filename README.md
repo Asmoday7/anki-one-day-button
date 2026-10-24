@@ -5,7 +5,7 @@
 Not sure you will remember a card? **HoldUp** schedules another look at a time
 you choose, alongside your normal Anki reviews.
 
-**[Download 1.0.0-rc.2](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-1.0.0-rc.2.ankiaddon)**
+**[Download 1.0.0-rc.3](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-1.0.0-rc.3.ankiaddon)**
 
 [User guide](USER_GUIDE.md) · [Руководство пользователя](USER_GUIDE.ru.md)
 
@@ -87,7 +87,7 @@ practice repeat or **Done** affects only the practice appointment.
 collection, including future ones. Cards and normal ratings remain.
 
 
-Version 1.0.0-rc.2 prepares the first stable release: faster large-queue clearing,
+Version 1.0.0-rc.3 prepares the first stable release: faster large-queue clearing,
 AGPL-3.0-or-later licensing, reproducible packages and Windows/Linux CI. It retains
 independent appearances of the same card, their existing deadlines and native Undo/Redo.
 
@@ -125,7 +125,7 @@ because Anki uses a single-instance mechanism.
 ```bash
 python -m pytest --basetemp=.dev/pytest-full
 python tools/package_addon.py
-python tools/build_release.py --tag v1.0.0-rc.2
+python tools/build_release.py --tag v1.0.0-rc.3
 ```
 
 The build is `.dev/dist/holdup.ankiaddon`. Published archives and checksums are in

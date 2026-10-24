@@ -1,4 +1,4 @@
-# HoldUp 1.0.0-rc.2
+# HoldUp 1.0.0-rc.3
 
 This is a **release candidate**, intended for final desktop testing before 1.0.0.
 Manual Windows 11 validation and a real study-day crossing are still open gates.
@@ -9,7 +9,8 @@ HoldUp adds extra practice alongside your normal Anki/FSRS reviews. Press HoldUp
 then choose a normal Anki rating for the original. Each new HoldUp press adds an
 independent extra appearance; Repeat and Done affect only the appearance on screen.
 
-This candidate corrects the clean-runner CI setup from rc.1. Runtime behavior is unchanged.
+This candidate makes queue-error recovery checks deterministic and verifies Anki’s
+complete native application shutdown. Runtime behavior is unchanged from rc.1.
 
 Included:
 
@@ -23,7 +24,7 @@ Included:
 - AGPL-3.0-or-later license, included in the archive with source and project notice.
 - Reproducible installers and checksums; Windows/Linux CI for Anki 26.09 and 26.09.3.
 
-Install `holdup-1.0.0-rc.2.ankiaddon` through Tools → Add-ons → Install from file,
+Install `holdup-1.0.0-rc.3.ankiaddon` through Tools → Add-ons → Install from file,
 then fully restart Anki. Keep one enabled copy. Existing appointments are retained.
 The `.zip` upload archive contains identical bytes; use the `.ankiaddon` for installation.
 

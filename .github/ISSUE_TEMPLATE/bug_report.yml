@@ -6,7 +6,7 @@ body:
     id: versions
     attributes:
       label: Anki and HoldUp versions
-      placeholder: Anki 26.09, HoldUp 1.0.0-rc.1
+      placeholder: Anki 26.09, HoldUp 1.0.0-rc.3
     validations:
       required: true
   - type: input

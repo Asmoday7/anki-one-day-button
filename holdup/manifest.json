@@ -1,6 +1,6 @@
 {
   "package": "holdup",
   "name": "HoldUp - Отправь карточку и в FSRS, и отдельную очередь!",
-  "human_version": "1.0.0-rc.2",
+  "human_version": "1.0.0-rc.3",
   "homepage": "https://github.com/Asmoday7/holdup-anki-addon"
 }
