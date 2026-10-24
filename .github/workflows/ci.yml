@@ -37,6 +37,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libegl1 libopengl0 libxkbcommon-x11-0 libxcb-cursor0
       - name: Install the tested Anki version
         run: python -m pip install -r requirements-dev.txt "aqt[qt]==${{ matrix.anki }}"
+      - name: Create validation output directory
+        run: python -c "from pathlib import Path; Path('.dev').mkdir(exist_ok=True)"
       - name: Run backend and packaged desktop checks
         run: python -m pytest -q --basetemp=.dev/ci-tests --junitxml=.dev/ci-results.xml
       - name: Publish failure details in check annotations
