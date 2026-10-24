@@ -26,8 +26,8 @@ jobs:
       HOLDUP_GUI_TIMEOUT: "180"
       PYTHONUTF8: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ startsWith(matrix.os, 'windows') && '3.13' || '3.12' }}
           cache: pip
@@ -39,6 +39,9 @@ jobs:
         run: python -m pip install -r requirements-dev.txt "aqt[qt]==${{ matrix.anki }}"
       - name: Run backend and packaged desktop checks
         run: python -m pytest -q --basetemp=.dev/ci-tests --junitxml=.dev/ci-results.xml
+      - name: Publish failure details in check annotations
+        if: failure()
+        run: python tools/report_ci_failure.py .dev/ci-results.xml
       - name: Require all integration checks
         run: python tools/check_test_report.py .dev/ci-results.xml
       - name: Measure a large synthetic queue
@@ -77,8 +80,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - uses: actions/download-artifact@v4
