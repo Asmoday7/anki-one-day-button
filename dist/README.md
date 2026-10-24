@@ -1,6 +1,6 @@
 # HoldUp: установочный архив
 
-Текущая тестовая версия — **[holdup-0.5.0-dev.ankiaddon](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-0.5.0-dev.ankiaddon)**.
+Текущая тестовая версия — **[holdup-1.0.0-rc.1.ankiaddon](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-1.0.0-rc.1.ankiaddon)**.
 
 **HoldUp - Отправь карточку и в FSRS, и отдельную очередь!**
 
@@ -30,13 +30,20 @@ HoldUp, если не было другого действия с коллекц
 [Ручная проверка](../TESTING.md).
 
 Контрольные суммы находятся в [`SHA256SUMS`](SHA256SUMS).
-Исходники — [`holdup/`](../holdup/), тесты и пользовательские данные в ZIP не входят.
+Исходники — [`holdup/`](../holdup/). В установочный архив входят LICENSE и NOTICE;
+тесты и пользовательские данные в ZIP не входят. Лицензия — AGPL-3.0-or-later.
+
+`holdup-1.0.0-rc.1.zip` содержит те же байты и предназначен для формы загрузки
+AnkiWeb. Для установки используйте `.ankiaddon`. Это кандидат в релиз;
+проверки, которые ещё ожидаются, перечислены в [чеклисте](../RELEASE_CHECKLIST.md).
 
 Сборка из корня репозитория:
 
 ```bash
-python tools/package_addon.py
+python tools/build_release.py --tag v1.0.0-rc.1
 ```
 
-Результат — `.dev/dist/holdup.ankiaddon`. Для публикации скопируйте проверенную
-сборку в `dist/holdup-0.5.0-dev.ankiaddon` и обновите SHA256SUMS.
+Команда создаёт версионные `.ankiaddon`, `.zip` и SHA256SUMS в `dist/`.
+GitHub Actions проверяет пакет на Linux и Windows и публикует prerelease для
+тегов `v*-rc.*` только после успешной матрицы. Финальный стабильный выпуск
+требует закрыть оставшиеся ручные проверки.

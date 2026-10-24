@@ -1,0 +1,29 @@
+name: Bug report
+description: Report a problem with HoldUp
+title: "[Bug] "
+body:
+  - type: input
+    id: versions
+    attributes:
+      label: Anki and HoldUp versions
+      placeholder: Anki 26.09, HoldUp 1.0.0-rc.1
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system and Anki language
+      placeholder: Windows 11, Russian
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps, expected result and actual result
+      description: Include the interval, normal rating and Undo/Redo steps if relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: Error text or screenshot

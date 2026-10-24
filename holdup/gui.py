@@ -144,10 +144,7 @@ class PracticeRuntime:
             self.practice_action.setText(tr("HoldUp: practice — ready {ready}, waiting {waiting}", ready=count, waiting=pending - count))
             # A poll only updates a count. It never changes the current card,
             # opens a window, or enters review without an explicit user action.
-            if self.mw.state == "overview":
-                if (count, pending) != self._overview_count:
-                    self._overview_count = (count, pending)
-                    self.mw.overview._renderBottom()
+            self.update_overview(count, pending)
 
         def failed(error):
             if generation != self._generation:
@@ -163,6 +160,21 @@ class PracticeRuntime:
                 self.report(error)
 
         QueryOp(parent=self.mw, op=read, success=done).failure(failed).run_in_background()
+
+    def update_overview(self, count: int, pending: int) -> None:
+        if self.mw.state != "overview" or (count, pending) == self._overview_count:
+            return
+        # A poll can finish while Anki is replacing the overview's pages.
+        # A second bottom.draw() at that point can flush native height queries
+        # into the discarded document. Keep the previous count so the next
+        # ordinary poll retries after Anki's own navigation is complete.
+        views = (self.mw.web, self.mw.bottomWeb)
+        if (self.mw._background_op_count
+                or any(not web._domDone or web.page().isLoading() for web in views)
+                or getattr(self.mw.bottomWeb._bridge_context, "overview", None) is not self.mw.overview):
+            return
+        self._overview_count = (count, pending)
+        self.mw.overview._renderBottom()
 
     def report(self, error: Exception) -> None:
         show_warning(tr("HoldUp: the action could not be completed. It was not retried automatically.") + "\n\n" + str(error), parent=self.mw)

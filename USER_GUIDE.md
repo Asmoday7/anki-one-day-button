@@ -9,7 +9,7 @@ for eight days from now while you would like to see it again tomorrow.
 ## Install
 
 If another copy of this add-on is installed, disable it in **Tools → Add-ons**
-and restart Anki. Install [the archive](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-0.5.0-dev.ankiaddon)
+and restart Anki. Install [the archive](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-1.0.0-rc.1.ankiaddon)
 through **Tools → Add-ons → Install from file**, then restart Anki again.
 
 Cards and practice appointments remain in the collection. Choose your preferred
@@ -101,6 +101,14 @@ collection. It does not delete cards or undo normal ratings.
 HoldUp follows Anki's language: Russian for Russian, English for other languages.
 Restart Anki after changing the language.
 
-HoldUp runs in desktop Anki. AnkiDroid does not run desktop Python add-ons, so it
-does not provide this button or practice interface. Cross-device synchronisation
-of practice appointments has not yet been verified.
+HoldUp works in desktop Anki. AnkiDroid and AnkiMobile do not run this desktop
+Python add-on. First-release support is one desktop installation per collection;
+live multi-device appointment sync and conflict resolution are unverified.
+
+For a verified backup or complete transfer, use Anki's **full collection export
+(.colpkg)** or a native collection backup, install HoldUp on the destination,
+and import/restore using Anki's normal full-collection flow. This replaces the
+destination collection. A deck **.apkg** does not carry the complete extra queue.
+The local interval preference may need to be chosen again.
+
+[Full data and compatibility details](release/DATA_AND_COMPATIBILITY.md).

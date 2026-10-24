@@ -5,9 +5,14 @@
 Not sure you will remember a card? **HoldUp** schedules another look at a time
 you choose, alongside your normal Anki reviews.
 
-**[Download 0.5.0-dev](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-0.5.0-dev.ankiaddon)**
+**[Download 1.0.0-rc.1](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-1.0.0-rc.1.ankiaddon)**
 
 [User guide](USER_GUIDE.md) · [Руководство пользователя](USER_GUIDE.ru.md)
+
+**Release candidate:** manual Windows 11 validation and a real study-day crossing
+are still open. [Release checklist](RELEASE_CHECKLIST.md) ·
+[Validation record](release/VALIDATION.md) ·
+[GitHub checks](https://github.com/Asmoday7/holdup-anki-addon/actions/workflows/ci.yml).
 
 ## Install
 
@@ -38,6 +43,8 @@ Each HoldUp press adds an independent extra appearance. Earlier appointments kee
 their deadlines; the waiting count includes every appearance, even of the same card.
 No card or note is duplicated. Scheduling practice alone does not answer
 Good or consume the daily new-card allowance; the normal rating does.
+
+![HoldUp alongside Anki's normal answer buttons](release/assets/01-normal-review.png)
 
 ## Language and time
 
@@ -80,9 +87,22 @@ practice repeat or **Done** affects only the practice appointment.
 collection, including future ones. Cards and normal ratings remain.
 
 
-Version 0.5.0 supports multiple extra appearances of the same card. Each new HoldUp
-press adds one; Repeat and Done affect only the appearance on screen. Undo/Redo
-handles additions separately from normal ratings. Existing appointments are retained.
+Version 1.0.0-rc.1 prepares the first stable release: faster large-queue clearing,
+AGPL-3.0-or-later licensing, reproducible packages and Windows/Linux CI. It retains
+independent appearances of the same card, their existing deadlines and native Undo/Redo.
+
+## Data and license
+
+First-release support is one desktop installation per collection. Full collection
+exports (`.colpkg`) and Anki backups preserve appointments; deck `.apkg` exports do
+not carry the complete queue. Live multi-device sync/conflict resolution remains
+unverified. See the [data contract](release/DATA_AND_COMPATIBILITY.md).
+
+HoldUp is free software under [AGPL-3.0-or-later](LICENSE). The installer includes
+the runtime source, full license and [project notice](NOTICE).
+
+[Release notes](release/RELEASE_NOTES.md) · [AnkiWeb submission kit](release/ANKIWEB.md) ·
+[GitHub releases](https://github.com/Asmoday7/holdup-anki-addon/releases).
 
 ## Development
 
@@ -104,6 +124,7 @@ because Anki uses a single-instance mechanism.
 ```bash
 python -m pytest --basetemp=.dev/pytest-full
 python tools/package_addon.py
+python tools/build_release.py --tag v1.0.0-rc.1
 ```
 
 The build is `.dev/dist/holdup.ankiaddon`. Published archives and checksums are in
@@ -117,6 +138,6 @@ validation. AnkiDroid does not run desktop Python add-ons. Extra practice does n
 submit FSRS ratings, although it can affect what a person remembers on their next
 normal review.
 
-Verified on Linux: **218 passed** on each of Anki **26.09 (e62e7739)** and
+Verified on Linux: **231 passed** on each of Anki **26.09 (e62e7739)** and
 **26.09.3 (29bb700b)**, including English/Russian GUI scenarios with and without
 minute learning steps. Windows and cross-device sync still need manual checks.

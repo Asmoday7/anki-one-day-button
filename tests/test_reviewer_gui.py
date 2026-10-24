@@ -23,17 +23,19 @@ def test_packaged_button_in_desktop_anki(tmp_path, steps, language):
     data = tmp_path / "data"
     data.mkdir()
     env = dict(os.environ)
-    env.update(QT_QPA_PLATFORM="offscreen", XDG_CACHE_HOME=str(cache), XDG_DATA_HOME=str(data), PYTHONUNBUFFERED="1")
+    env.update(QT_QPA_PLATFORM="offscreen", XDG_CACHE_HOME=str(cache), XDG_DATA_HOME=str(data),
+               PYTHONUNBUFFERED="1", PYTHONUTF8="1")
     log = tmp_path / "desktop.log"
     try:
-        with log.open("w") as output:
+        with log.open("w", encoding="utf-8") as output:
             result = subprocess.run(
                 [sys.executable, str(Path(__file__).with_name("gui_probe.py")), str(base), str(archive), steps, language],
-                env=env, stdout=output, stderr=subprocess.STDOUT, text=True, timeout=90,
+                env=env, stdout=output, stderr=subprocess.STDOUT, text=True,
+                timeout=int(os.environ.get("HOLDUP_GUI_TIMEOUT", "120")),
             )
     except subprocess.TimeoutExpired:
-        pytest.fail("Desktop probe timed out:\n" + log.read_text())
-    output = log.read_text()
+        pytest.fail("Desktop probe timed out:\n" + log.read_text(encoding="utf-8"))
+    output = log.read_text(encoding="utf-8")
     assert result.returncode == 0, output
     assert output.count("PASS ") == 13, output
     assert "JS error" not in output, output

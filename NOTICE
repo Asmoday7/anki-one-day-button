@@ -1,0 +1,16 @@
+HoldUp
+Copyright (C) 2026 HoldUp contributors
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+HoldUp is free software: you can redistribute it and/or modify it under the
+GNU Affero General Public License as published by the Free Software Foundation,
+either version 3 of the License, or (at your option) any later version.
+
+HoldUp is distributed without any warranty. See LICENSE for the full terms.
+
+The Python and JavaScript source of the add-on is included in its installation
+archive. Full project source, documentation and tests are available at:
+https://github.com/Asmoday7/holdup-anki-addon
+
+Anki and its dependencies are separate projects with their own licenses.

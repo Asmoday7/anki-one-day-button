@@ -426,3 +426,19 @@ def test_switching_decks_excludes_previous_practice_before_native_queue_rebuild(
     assert flow.active is None and flow.reviewer.card.id == note.card_ids()[0]
     assert flow.reviewer._v3 is not None and not flow.reviewer._holdup_practice
     assert queue.get(cid) is not None
+
+
+def test_native_overview_render_records_counts_to_avoid_an_immediate_poll_redraw(col, monkeypatch):
+    from aqt.overview import OverviewBottomBar
+
+    flow = flow_for(col, monkeypatch, clock=100000)
+    flow.mw.overview = object()
+    queue = PracticeQueue(col)
+    cid = col.find_cards("")[0]
+    queue.enqueue(cid, 7200, 1000)
+    content = SimpleNamespace(body="")
+    flow.overview_content(content, OverviewBottomBar(flow.mw.overview))
+    assert flow.runtime._overview_count == (0, 1)
+    queue.enqueue(cid, 1, 1000)
+    flow.overview_content(SimpleNamespace(body=""), OverviewBottomBar(flow.mw.overview))
+    assert flow.runtime._overview_count == (1, 2)

@@ -459,6 +459,10 @@ class ReviewFlow:
             ready = sum(request.due_ms <= now_ms() for request in requests)
         except (ValueError, TypeError):
             return
+        # Anki's native refresh already renders the current practice status.
+        # Remember it so the polling callback does not immediately replace the
+        # same bottom page a second time during initial overview navigation.
+        self.runtime._overview_count = (ready, len(requests))
         if requests:
             content.body += (
                 '<div id="holdup-overview-status" role="status" '

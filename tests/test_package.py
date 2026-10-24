@@ -16,11 +16,14 @@ def test_archive_has_anki_layout_and_manifest(tmp_path):
             "reviewer_adapter.py", "web/reviewer.js",
             "practice.py", "gui.py", "review_flow.py", "config.json",
             "deck_indicator.py", "web/deckbrowser.js", "i18n.py",
+            "LICENSE", "NOTICE",
         }
         manifest = json.loads(archive.read("manifest.json"))
         assert manifest["package"] == "holdup"
         assert manifest["name"] == "HoldUp - Отправь карточку и в FSRS, и отдельную очередь!"
         assert isinstance(manifest["human_version"], str)
+        assert "GNU AFFERO GENERAL PUBLIC LICENSE" in archive.read("LICENSE").decode()
+        assert "AGPL-3.0-or-later" in archive.read("NOTICE").decode()
         for name in ("__init__.py", "request_store.py", "reviewer_adapter.py", "practice.py", "gui.py", "review_flow.py", "deck_indicator.py", "i18n.py"):
             compile(archive.read(name), name, "exec")
 
@@ -54,3 +57,22 @@ def test_packaged_entry_loads_under_numeric_name_without_anki(tmp_path):
     )
     assert result.stdout == ""
     assert result.stderr == ""
+
+
+def test_release_archive_is_reproducible_after_checkout_timestamps_change(tmp_path, monkeypatch):
+    import os
+    from shutil import copytree, copyfile
+    import tools.package_addon as package
+
+    source = tmp_path / "source"
+    copytree(package.ADDON, source / "holdup")
+    for name in package.LEGAL_FILES:
+        copyfile(package.REPOSITORY / name, source / name)
+    monkeypatch.setattr(package, "ADDON", source / "holdup")
+    monkeypatch.setattr(package, "REPOSITORY", source)
+    first = package.build_addon(tmp_path / "first.ankiaddon").read_bytes()
+    for path in source.rglob("*"):
+        if path.is_file():
+            os.utime(path, (1700000000, 1700000000))
+    second = package.build_addon(tmp_path / "second.ankiaddon").read_bytes()
+    assert first == second

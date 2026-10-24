@@ -339,26 +339,31 @@ class PracticeQueue:
         if not expected or len({(r.card_id, r.request_id) for r in expected}) != len(expected):
             raise ValueError("Expected a nonempty list of distinct requests")
         entries = self._overrides()
+        source_cards = {cid: self.col.get_card(cid) for cid in {r.card_id for r in expected}}
+        existing = {cid: self._card_requests(card, entries) for cid, card in source_cards.items()}
+        by_identity = {(r.card_id, r.request_id): r for group in existing.values() for r in group}
         cards = []
-        native = False
+        removed = {}
         for request in expected:
-            if self.get(request.card_id, request.request_id) != request:
+            if by_identity.get((request.card_id, request.request_id)) != request:
                 raise PracticeStateChanged("Practice request changed; reload the list")
             if request.original_queue is not None:
                 cards.append(self._release_card(request))
             else:
-                native = True
-                card = self.col.get_card(request.card_id)
-                remaining = [r for r in self._card_requests(card, entries)
-                             if r.request_id != request.request_id]
-                data = _decode(card.custom_data)
-                if remaining or any(key in data for key in KEYS):
-                    entries[str(request.card_id)] = [self._entry(r) for r in remaining]
-                else:
-                    entries.pop(str(request.card_id), None)
+                removed.setdefault(request.card_id, set()).add(request.request_id)
+        # Validate the original snapshot once. Re-reading and validating the
+        # entire config for every appearance made clearing 1000 items take
+        # several seconds even when they all belonged to a single card.
+        for cid, identities in removed.items():
+            remaining = [r for r in existing[cid] if r.request_id not in identities]
+            data = _decode(source_cards[cid].custom_data)
+            if remaining or any(key in data for key in KEYS):
+                entries[str(cid)] = [self._entry(r) for r in remaining]
+            else:
+                entries.pop(str(cid), None)
         if not cards:
             return self._save_overrides(entries, name)
-        if not native:
+        if not removed:
             return self.col.update_cards(cards)
         # Only recovery can contain paused cards. Validate the whole batch
         # above, then group our two kinds of changes into one native Undo.

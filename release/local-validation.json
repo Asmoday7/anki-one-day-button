@@ -1,0 +1,31 @@
+{
+  "candidate": "1.0.0-rc.1",
+  "source_tag": "v1.0.0-rc.1",
+  "recorded_local": "2026-10-24T22:05:20.167523+10:00",
+  "archive_sha256": "6b9510b013b1b7036ab1904c0eb6ef2068b6b07de514ec21f6132f9d541940a0",
+  "local_results": [
+    {
+      "platform": "Linux",
+      "anki": "26.09",
+      "python": "3.12.14",
+      "passed": 231,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "packaged_gui_cases": 4
+    },
+    {
+      "platform": "Linux",
+      "anki": "26.09.3",
+      "python": "3.12.14",
+      "passed": 231,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "packaged_gui_cases": 4
+    }
+  ],
+  "windows_ci": "not yet verified",
+  "windows_11_manual": "not yet reported",
+  "real_windows_study_day_crossing": "not yet reported"
+}

@@ -1,0 +1,11 @@
+{
+  "appearances": 1000,
+  "platform": "Linux",
+  "python": "3.12.14",
+  "anki_package": "26.9",
+  "holdup": "1.0.0-rc.1",
+  "read_seconds": 0.010378542996477336,
+  "repeat_seconds": 0.018731946009211242,
+  "clear_seconds": 0.008147024986101314,
+  "undo_redo": "passed"
+}

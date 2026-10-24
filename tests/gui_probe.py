@@ -31,6 +31,32 @@ def main(base: Path, archive: Path, steps: str, language: str) -> None:
     assert app is not None
     mw = aqt.mw
     assert mw is not None
+    # Optional diagnostics retain the native height query and its error. They
+    # identify which webview/caller issued a query while a page was replaced.
+    import os
+    if os.environ.get("HOLDUP_DEBUG_HEIGHT"):
+        import traceback
+        print("WEBVIEW IDS", {name: id(getattr(mw, name))
+                              for name in ("web", "bottomWeb", "toolbarWeb")}, flush=True)
+        for name in ("web", "bottomWeb", "toolbarWeb"):
+            web = getattr(mw, name)
+            original = web.evalWithCallback
+
+            def diagnostic(script, callback, *, _name=name, _web=web, _original=original):
+                if script != "document.documentElement.offsetHeight":
+                    return _original(script, callback)
+                stack = "".join(traceback.format_stack(limit=9))
+                state = (mw.state, _web._domDone, _web.page().isLoading())
+
+                def complete(value):
+                    if value is None:
+                        print("NULL HEIGHT", _name, state, stack, flush=True)
+                    if callback:
+                        callback(value)
+
+                return _original(script, complete)
+
+            web.evalWithCallback = diagnostic
     # Report unexpected JavaScript alerts as test failures instead of leaving
     # an unattended modal dialog open until the subprocess timeout.
     alerts = []
