@@ -1,4 +1,4 @@
-# HoldUp: архитектура 1.0.0-rc.1
+# HoldUp: архитектура 1.0.0-rc.2
 
 HoldUp создаёт виртуальное дополнительное назначение той же карточки.
 Оригинал остаётся в reviewer для обычной оценки Anki/FSRS. Общий интерфейс
@@ -174,7 +174,7 @@ reviewer выходит из `transition` через настоящий native h
 
 `tools/package_addon.py` собирает разрешённый список runtime-файлов в корень ZIP.
 Результат — `.dev/dist/holdup.ankiaddon`; публичная сборка —
-`dist/holdup-1.0.0-rc.1.ankiaddon`. В архив входят LICENSE и NOTICE с AGPL-3.0-or-later.
+`dist/holdup-1.0.0-rc.2.ankiaddon`. В архив входят LICENSE и NOTICE с AGPL-3.0-or-later.
 Фиксированные ZIP metadata и хранение без zlib делают байты воспроизводимыми между
 Windows/Linux. `tools/build_release.py` проверяет совпадение тега и версии, создаёт
 одинаковые `.ankiaddon`/`.zip` и SHA256SUMS. Тесты, кеши и пользовательские данные не пакуются.

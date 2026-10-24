@@ -10,7 +10,7 @@
 
 Если уже установлена другая копия этого аддона, отключите её через
 **Инструменты → Дополнения** и перезапустите Anki. Установите
-[архив](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-1.0.0-rc.1.ankiaddon)
+[архив](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-1.0.0-rc.2.ankiaddon)
 через **Инструменты → Дополнения → Установить из файла** и снова перезапустите Anki.
 
 Карточки и назначения практики остаются в коллекции. При необходимости выберите

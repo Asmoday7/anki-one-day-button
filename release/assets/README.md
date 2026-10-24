@@ -3,6 +3,7 @@
 These PNGs are captured from the installed candidate in a disposable English
 Anki profile on Linux/Qt, using synthetic vocabulary. They are actual application
 captures, not mockups or Windows validation evidence.
+They were captured from rc.1; rc.2 changes only version metadata and CI setup.
 
 1. `01-normal-review.png`: normal Anki ratings with the fifth HoldUp button.
 2. `02-interval.png`: interval presets and Next Anki study day.
@@ -13,7 +14,7 @@ Capture again with:
 
 ```bash
 QT_QPA_PLATFORM=offscreen python tools/capture_screenshots.py \
-  dist/holdup-1.0.0-rc.1.ankiaddon .dev/new-demo-profile release/assets
+  dist/holdup-1.0.0-rc.2.ankiaddon .dev/new-demo-profile release/assets
 ```
 
 Use a fresh profile directory. The script refuses an existing one and does not

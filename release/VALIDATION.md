@@ -1,6 +1,6 @@
 # Candidate validation record
 
-Candidate: **1.0.0-rc.1**. Dates use the tester's local time zone.
+Candidate: **1.0.0-rc.2**. Dates use the tester's local time zone.
 
 | Environment | Evidence | Status |
 | --- | --- | --- |
@@ -16,7 +16,9 @@ Candidate: **1.0.0-rc.1**. Dates use the tester's local time zone.
 The previous 0.5.0 build passed 218 tests on each Linux Anki version. Those results
 are not substituted for the candidate or for Windows.
 
-Local machine-readable results: [local-validation.json](local-validation.json).
+Local machine-readable results for the preceding rc.1 runtime (unchanged in rc.2):
+[local-validation.json](local-validation.json). The rc.2 tagged CI run tests its own
+versioned package separately.
 
 ## Storage and load
 

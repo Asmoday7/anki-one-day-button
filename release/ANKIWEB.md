@@ -9,7 +9,7 @@ Use one listing and keep its existing add-on code for future updates.
 
 The ready-to-paste English HTML is [ankiweb-description.html](ankiweb-description.html).
 Four real desktop screenshots are in [assets](assets/README.md). The upload archive
-is `dist/holdup-1.0.0-rc.1.zip`; it is identical to the `.ankiaddon` installer.
+is `dist/holdup-1.0.0-rc.2.zip`; it is identical to the `.ankiaddon` installer.
 
 Compatibility targets: desktop Anki 26.09 and 26.09.3. Use the current
 [validation record](VALIDATION.md) for tested platforms. Do not advertise Windows

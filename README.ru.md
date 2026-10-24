@@ -5,7 +5,7 @@
 Не уверены, что запомнили карточку? **HoldUp** позволяет увидеть её ещё раз
 в выбранное время, дополнительно к обычным повторениям Anki.
 
-**[Скачать 1.0.0-rc.1](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-1.0.0-rc.1.ankiaddon)**
+**[Скачать 1.0.0-rc.2](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-1.0.0-rc.2.ankiaddon)**
 
 [Инструкция пользователя](USER_GUIDE.ru.md) · [User guide](USER_GUIDE.md)
 
@@ -87,7 +87,7 @@ Anki и HoldUp. Синий и красный счётчики берутся и�
 открытой коллекции, включая будущие. Карточки и обычные оценки сохраняются.
 
 
-Версия 1.0.0-rc.1 готовит первый стабильный выпуск: ускорена очистка большой очереди,
+Версия 1.0.0-rc.2 готовит первый стабильный выпуск: ускорена очистка большой очереди,
 добавлены лицензия AGPL-3.0-or-later, воспроизводимые архивы и CI для Windows/Linux.
 Несколько независимых повторов одной карточки, их прежние сроки и Undo/Redo сохраняются.
 
@@ -114,6 +114,7 @@ HoldUp распространяется под [AGPL-3.0-or-later](LICENSE). У�
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements-dev.txt
+mkdir -p .dev
 python -m pytest -m "not anki_contract and not anki_gui" --basetemp=.dev/pytest-unit
 ```
 
@@ -125,7 +126,7 @@ python -m pytest -m "not anki_contract and not anki_gui" --basetemp=.dev/pytest-
 ```bash
 python -m pytest --basetemp=.dev/pytest-full
 python tools/package_addon.py
-python tools/build_release.py --tag v1.0.0-rc.1
+python tools/build_release.py --tag v1.0.0-rc.2
 ```
 
 Сборка — `.dev/dist/holdup.ankiaddon`. Архивы и контрольные суммы — в [dist](dist/README.md).
