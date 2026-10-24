@@ -11,7 +11,7 @@ must not be reported as completed.
 - [x] A reproducible benchmark measures a temporary 1000-appearance queue.
 - [x] Windows/Python 3.13 and Linux/Python 3.12 CI jobs are defined for both Anki versions.
 - [x] Candidate's Linux matrix results recorded in [validation](release/VALIDATION.md).
-- [ ] Candidate's Windows CI matrix completed successfully.
+- [x] Candidate's Windows CI matrix completed successfully: 231 tests on each Anki version.
 - [ ] Actual Windows 11 test of the candidate completed by a tester.
 - [ ] A real Anki study-day boundary observed in the Windows test installation.
 
@@ -34,8 +34,8 @@ must not be reported as completed.
 - [x] Deterministic Windows/Linux packaging with checksums is implemented.
 - [x] Candidate release notes and English AnkiWeb description are prepared.
 - [x] Four actual Anki screenshots captured and reviewed.
-- [ ] Candidate archives and matching source tag pushed to GitHub.
-- [ ] GitHub prerelease published after all four CI jobs pass.
+- [x] Candidate archives and matching source tag pushed to GitHub.
+- [x] [GitHub prerelease](https://github.com/Asmoday7/holdup-anki-addon/releases/tag/v1.0.0-rc.3) published after all four CI jobs pass.
 - [ ] Final manual Windows results received before stable 1.0.0.
 - [ ] Stable version/tag/archive prepared after the remaining validation gates pass.
 - [ ] AnkiWeb listing uploaded through the owner's account.

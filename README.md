@@ -5,7 +5,7 @@
 Not sure you will remember a card? **HoldUp** schedules another look at a time
 you choose, alongside your normal Anki reviews.
 
-**[Download 1.0.0-rc.3](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-1.0.0-rc.3.ankiaddon)**
+**[Download 1.0.0-rc.3](https://github.com/Asmoday7/holdup-anki-addon/releases/download/v1.0.0-rc.3/holdup-1.0.0-rc.3.ankiaddon)**
 
 [User guide](USER_GUIDE.md) · [Руководство пользователя](USER_GUIDE.ru.md)
 
@@ -134,11 +134,13 @@ AnkiWeb; pytest clears `--basetemp`. Skipped backend or GUI checks do not establ
 integration support.
 
 [Architecture](ARCHITECTURE.md) and [manual checks](TESTING.md) are maintained in Russian.
-Windows/Python 3.13, cross-device sync, audio and complex templates require manual
-validation. AnkiDroid does not run desktop Python add-ons. Extra practice does not
+Real Windows 11 scaling, audio and complex templates require manual validation;
+live cross-device sync remains outside the supported scope. AnkiDroid does not run desktop Python add-ons. Extra practice does not
 submit FSRS ratings, although it can affect what a person remembers on their next
 normal review.
 
-Verified on Linux: **231 passed** on each of Anki **26.09 (e62e7739)** and
-**26.09.3 (29bb700b)**, including English/Russian GUI scenarios with and without
-minute learning steps. Windows and cross-device sync still need manual checks.
+Automated validation: **231 passed in each of four jobs** — Windows/Python 3.13
+and Linux/Python 3.12, with Anki **26.09** and **26.09.3**. Each job includes four
+English/Russian GUI scenarios with and without minute learning steps and clean
+native shutdown. See the [candidate report](release/validation-1.0.0-rc.3.json).
+Manual Windows 11 testing and a real study-day crossing are still pending.

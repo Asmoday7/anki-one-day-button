@@ -1,0 +1,73 @@
+{
+  "candidate": "1.0.0-rc.3",
+  "source_commit": "bc91f1fbd98d19b2107282738212979eb807a2b9",
+  "recorded_utc": "2026-10-24T12:42:18.562650+00:00",
+  "automated": [
+    {
+      "job": "validation-ubuntu-24.04-anki-26.9",
+      "passed": 231,
+      "packaged_gui_cases": 4,
+      "queue_benchmark": {
+        "appearances": 1000,
+        "platform": "Linux",
+        "python": "3.12.15",
+        "anki_package": "26.9",
+        "holdup": "1.0.0-rc.3",
+        "read_seconds": 0.009524306999992405,
+        "repeat_seconds": 0.01823939899998095,
+        "clear_seconds": 0.01360037899999611,
+        "undo_redo": "passed"
+      }
+    },
+    {
+      "job": "validation-ubuntu-24.04-anki-26.9.3",
+      "passed": 231,
+      "packaged_gui_cases": 4,
+      "queue_benchmark": {
+        "appearances": 1000,
+        "platform": "Linux",
+        "python": "3.12.15",
+        "anki_package": "26.9.3",
+        "holdup": "1.0.0-rc.3",
+        "read_seconds": 0.009121412000013152,
+        "repeat_seconds": 0.017843861000017114,
+        "clear_seconds": 0.009688758999999436,
+        "undo_redo": "passed"
+      }
+    },
+    {
+      "job": "validation-windows-2025-anki-26.9",
+      "passed": 231,
+      "packaged_gui_cases": 4,
+      "queue_benchmark": {
+        "appearances": 1000,
+        "platform": "Windows",
+        "python": "3.13.16",
+        "anki_package": "26.9",
+        "holdup": "1.0.0-rc.3",
+        "read_seconds": 0.013868599999966591,
+        "repeat_seconds": 0.027275899999949615,
+        "clear_seconds": 0.01585949999997638,
+        "undo_redo": "passed"
+      }
+    },
+    {
+      "job": "validation-windows-2025-anki-26.9.3",
+      "passed": 231,
+      "packaged_gui_cases": 4,
+      "queue_benchmark": {
+        "appearances": 1000,
+        "platform": "Windows",
+        "python": "3.13.16",
+        "anki_package": "26.9.3",
+        "holdup": "1.0.0-rc.3",
+        "read_seconds": 0.01556990000000269,
+        "repeat_seconds": 0.030381500000032702,
+        "clear_seconds": 0.016496700000004694,
+        "undo_redo": "passed"
+      }
+    }
+  ],
+  "windows_11_manual": "not yet reported",
+  "real_windows_study_day_crossing": "not yet reported"
+}

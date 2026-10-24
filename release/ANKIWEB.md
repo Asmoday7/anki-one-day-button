@@ -4,6 +4,9 @@
 
 Suggested title: **HoldUp — Extra practice alongside FSRS**
 
+The [GitHub prerelease](https://github.com/Asmoday7/holdup-anki-addon/releases/tag/v1.0.0-rc.3)
+is published with verified installers and the four-job validation report.
+
 English and Russian are included in the same add-on. HoldUp follows Anki's language.
 Use one listing and keep its existing add-on code for future updates.
 

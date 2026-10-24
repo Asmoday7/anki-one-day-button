@@ -1,6 +1,6 @@
 # HoldUp: установочный архив
 
-Текущая тестовая версия — **[holdup-1.0.0-rc.3.ankiaddon](https://github.com/Asmoday7/holdup-anki-addon/raw/refs/heads/main/dist/holdup-1.0.0-rc.3.ankiaddon)**.
+Текущая тестовая версия — **[holdup-1.0.0-rc.3.ankiaddon](https://github.com/Asmoday7/holdup-anki-addon/releases/download/v1.0.0-rc.3/holdup-1.0.0-rc.3.ankiaddon)**.
 
 **HoldUp - Отправь карточку и в FSRS, и отдельную очередь!**
 
